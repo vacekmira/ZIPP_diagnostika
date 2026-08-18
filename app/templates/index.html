@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Zakázky · ZIPP Diagnostika{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Terénní evidence</p>
+    <h1>Aktivní zakázky</h1>
+    <p>Průběh diagnostiky betonových dodatečně předpínaných ZIPP vazníků.</p>
+  </div>
+  <button class="button primary" data-open-project>+ Nová zakázka</button>
+</section>
+
+<section class="project-grid">
+{% for item in projects %}
+  <a class="project-card" href="/projects/{{ item.id }}">
+    <div class="card-heading"><h2>{{ item.name }}</h2><span>{{ item.progress.percent }} %</span></div>
+    <div class="progress"><i style="width: {{ item.progress.percent }}%"></i></div>
+    <p><strong>{{ item.progress.completed }} / {{ item.progress.required }}</strong> požadovaných stran hotovo</p>
+    <p class="muted">{{ item.bays|length }} lodí · {{ item.progress.excluded }} vyřazených vazníků</p>
+  </a>
+{% else %}
+  <div class="empty-state"><strong>Zatím tu není žádná zakázka.</strong><span>Založte první halu a aplikace automaticky vytvoří lodě i vazníky.</span></div>
+{% endfor %}
+</section>
+
+{% if archived %}
+<details class="archive"><summary>Archivované zakázky ({{ archived|length }})</summary>
+  <div class="project-grid">
+  {% for item in archived %}<a class="project-card archived" href="/projects/{{ item.id }}"><h2>{{ item.name }}</h2><p>Archiv · pouze pro čtení</p></a>{% endfor %}
+  </div>
+</details>
+{% endif %}
+
+<dialog data-project-dialog>
+  <form class="dialog-form" data-project-form>
+    <div><p class="eyebrow">Nová hala</p><h2>Založit zakázku</h2></div>
+    <label>Název<input name="name" maxlength="160" required placeholder="Hala ABC"></label>
+    <div class="two-columns">
+      <label>Počet lodí<input name="bay_count" type="number" min="1" max="100" value="3" required></label>
+      <label>Vazníků v lodi<input name="default_truss_count" type="number" min="1" max="500" value="24" required></label>
+    </div>
+    <label>Poznámka<textarea name="note" rows="3" maxlength="4000"></textarea></label>
+    <div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>Zrušit</button><button class="button primary">Vytvořit zakázku</button></div>
+  </form>
+</dialog>
+{% endblock %}

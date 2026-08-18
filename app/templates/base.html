@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123a32">
+  <title>{% block title %}ZIPP Diagnostika{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body data-project-id="{{ project.id if project is defined else '' }}">
+  <header class="topbar">
+    <a class="brand" href="/">ZIPP <span>Diagnostika</span></a>
+    <div class="topbar-actions">
+      <button type="button" class="technician-pill" data-change-technician>Technik: <strong data-technician-name>—</strong></button>
+      <span class="connection" data-connection><i></i><span>Lokální režim</span></span>
+    </div>
+  </header>
+  <main class="shell">
+    {% block content %}{% endblock %}
+    <footer class="footer">ZIPP Diagnostika · verze {{ version }}</footer>
+  </main>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <dialog data-technician-dialog>
+    <form method="dialog" class="dialog-form" data-technician-form>
+      <div>
+        <p class="eyebrow">Auditní evidence</p>
+        <h2>Kdo právě pracuje?</h2>
+        <p class="muted">Jméno se ukládá jen v tomto prohlížeči. Nejde o přihlášení.</p>
+      </div>
+      <label>Jméno technika<input name="technician" maxlength="100" autocomplete="name" required></label>
+      <button class="button primary" value="save">Pokračovat</button>
+    </form>
+  </dialog>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

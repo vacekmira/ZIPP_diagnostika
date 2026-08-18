@@ -1,0 +1,18 @@
+[Unit]
+Description=ZIPP Diagnostics
+After=network.target
+
+[Service]
+Type=simple
+User=zipp
+Group=zipp
+WorkingDirectory=/opt/zipp-diagnostics/current
+EnvironmentFile=/etc/zipp-diagnostics/app.env
+ExecStart=/opt/zipp-diagnostics/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

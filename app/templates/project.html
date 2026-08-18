@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · ZIPP Diagnostika{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="/">Zakázky</a><span>/</span><span>{{ project.name }}</span></nav>
+<section class="hero compact">
+  <div><p class="eyebrow">{{ "Archivovaná zakázka" if project.archived else "Aktivní zakázka" }}</p><h1>{{ project.name }}</h1>{% if project.note %}<p>{{ project.note }}</p>{% endif %}</div>
+  {% if project.archived %}<button class="button secondary" data-project-state="reactivate" data-project="{{ project.id }}">Reaktivovat</button>{% else %}<button class="button danger-quiet" data-project-state="archive" data-project="{{ project.id }}">Archivovat</button>{% endif %}
+</section>
+<section class="summary-card">
+  <div><strong>{{ project.progress.percent }} %</strong><span>celkem dokončeno</span></div>
+  <div class="progress"><i style="width: {{ project.progress.percent }}%"></i></div>
+  <p>{{ project.progress.completed }} / {{ project.progress.required }} požadovaných stran · {{ project.progress.remaining }} zbývá · {{ project.progress.excluded }} vyřazeno</p>
+</section>
+<section><div class="section-heading"><h2>Lodě</h2><span>{{ project.bays|length }} celkem</span></div>
+  <div class="bay-grid">
+  {% for bay in project.bays %}
+    <a class="bay-card" href="/bays/{{ bay.id }}"><div><span class="bay-number">{{ "%02d"|format(bay.position) }}</span><h3>{{ bay.name }}</h3></div><strong>{{ bay.progress.percent }} %</strong><p>{{ bay.progress.completed }} / {{ bay.progress.required }} stran · {{ bay.progress.excluded }} vyřazeno</p><div class="progress"><i style="width: {{ bay.progress.percent }}%"></i></div></a>
+  {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Vazník {{ truss.label }} · ZIPP Diagnostika{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="/bays/{{ bay.id }}">{{ bay.name }}</a><span>/</span><span>{{ truss.label }}</span></nav>
+<section class="hero compact"><div><p class="eyebrow">Pozice {{ truss.position }} · interní ID {{ truss.id }}</p><h1>Vazník {{ truss.label }}</h1><p>{{ truss.type_label }}{% if truss.pair_id %} · ⛓ dilatační dvojice {{ truss.pair_id }}{% endif %}</p></div><a class="button secondary" href="/bays/{{ bay.id }}">Zpět do lodě</a></section>
+<div class="detail-grid">
+  <section class="panel"><h2>Stav diagnostiky</h2><div class="status-pair"><span class="{{ 'status-done' if truss.left_done }}">L · {{ 'provedeno' if truss.left_done else 'neprovedeno' }}</span><span class="{{ 'status-done' if truss.right_done }}">P · {{ 'provedeno' if truss.right_done else 'neprovedeno' }}</span></div>{% if truss.excluded %}<div class="notice danger"><strong>Vyřazen · {{ truss.exclusion_reason_label }}</strong><span>{{ truss.exclusion_note or 'Bez poznámky' }}</span></div><button class="button secondary" data-restore="{{ truss.id }}" data-version="{{ truss.version }}">Zrušit vyřazení</button>{% else %}<form data-exclude-form data-truss-id="{{ truss.id }}" data-version="{{ truss.version }}"><label>Důvod vyřazení<select name="reason"><option value="leak">Zatečený</option><option value="crack">Trhlina</option><option value="other">Jiné</option></select></label><label>Poznámka<textarea name="note" rows="3"></textarea></label><button class="button danger">Vyřadit vazník</button></form>{% endif %}</section>
+  <section class="panel"><h2>Historie změn</h2><div class="audit-list">{% for item in audit %}<article><strong>{{ item.technician }}</strong><time datetime="{{ item.created_at }}" data-local-time>{{ item.created_at }}</time><span>{{ item.action }}{% if item.field %} · {{ item.field }}{% endif %}</span></article>{% else %}<p class="muted">Zatím bez změn.</p>{% endfor %}</div></section>
+</div>
+{% endblock %}

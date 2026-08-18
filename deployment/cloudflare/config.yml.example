@@ -1,0 +1,7 @@
+tunnel: VLOZTE-ID-TUNELU
+credentials-file: /etc/cloudflared/VLOZTE-ID-TUNELU.json
+
+ingress:
+  - hostname: diagnostika.example.cz
+    service: http://127.0.0.1:8000
+  - service: http_status:404
