@@ -15,6 +15,17 @@ TYPE_LABELS = {"normal": "Běžný", "gable": "Štítový", "dilation": "Dilata�
 REASON_LABELS = {"leak": "Zatečený", "crack": "Trhlina", "other": "Jiné"}
 
 
+def bay_code(position: int) -> str:
+    """Return spreadsheet-style bay code: A..Z, AA..AZ, BA..."""
+    if position < 1:
+        raise ValueError("Bay position must be positive")
+    result = ""
+    while position:
+        position, remainder = divmod(position - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
 def clean_text(value: str, label: str) -> str:
     value = value.strip()
     if not value:
@@ -91,15 +102,17 @@ def audit(
 
 
 def create_project(db: Session, *, name: str, note: str | None, bay_count: int, truss_count: int, technician: str) -> Project:
-    project = Project(name=clean_text(name, "Název zakázky"), note=(note or "").strip() or None)
+    project = Project(name=clean_text(name, "Název zakázky"), note=(note or "").strip() or None,
+                      labeling_scheme="bay_prefix")
     db.add(project)
     db.flush()
     for bay_position in range(1, bay_count + 1):
-        bay = Bay(project_id=project.id, position=bay_position, name=f"Loď {bay_position}")
+        code = bay_code(bay_position)
+        bay = Bay(project_id=project.id, position=bay_position, name=f"Loď {code}")
         db.add(bay)
         db.flush()
         db.add_all(
-            [Truss(bay_id=bay.id, position=position, label=str(position)) for position in range(1, truss_count + 1)]
+            [Truss(bay_id=bay.id, position=position, label=f"{code}{position}") for position in range(1, truss_count + 1)]
         )
     audit(db, project_id=project.id, technician=technician, action="project.created", new={"name": project.name})
     db.commit()

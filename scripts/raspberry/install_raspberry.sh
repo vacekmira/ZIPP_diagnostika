@@ -2,6 +2,8 @@
 set -euo pipefail
 if [[ $EUID -ne 0 ]]; then echo "Spusťte pomocí sudo."; exit 1; fi
 SOURCE_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+apt-get update
+apt-get install -y fonts-dejavu-core
 id zipp >/dev/null 2>&1 || useradd --system --home /var/lib/zipp-diagnostics --shell /usr/sbin/nologin zipp
 install -d -o zipp -g zipp /var/lib/zipp-diagnostics/db /var/lib/zipp-diagnostics/backups
 install -d /opt/zipp-diagnostics /etc/zipp-diagnostics

@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from . import __version__
 from .database import get_db
+from .auth import require_api_auth
 from .domain import (
     audit,
     bay_dict,
+    bay_code,
     bump,
     check_version,
     clean_text,
@@ -30,6 +32,8 @@ from .domain import (
     utc_iso,
 )
 from .models import AuditLog, Bay, DilationPair, DilationPairMember, Project, Truss
+from .i18n import normalize_language
+from .plan import render_plan_pdf, render_plan_svg
 from .realtime import manager
 from .schemas import (
     ActorOperation,
@@ -46,7 +50,7 @@ from .schemas import (
 )
 
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(require_api_auth)])
 
 
 def load_project(db: Session, project_id: int) -> Project:
@@ -107,6 +111,23 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     return project_dict(load_project(db, project_id))
 
 
+@router.get("/projects/{project_id}/plan.svg")
+def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = None, db: Session = Depends(get_db)):
+    project = project_dict(load_project(db, project_id))
+    return Response(render_plan_svg(project, normalize_language(lang)), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store", "X-Project-Revision": str(project["revision"])})
+
+
+@router.get("/projects/{project_id}/plan.pdf")
+def project_plan_pdf(project_id: int, lang: str = "cs", db: Session = Depends(get_db)):
+    project = project_dict(load_project(db, project_id))
+    pdf = render_plan_pdf(project, normalize_language(lang))
+    return Response(pdf, media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="zipp-plan-project-{project_id}.pdf"',
+        "Cache-Control": "no-store",
+    })
+
+
 @router.post("/projects/{project_id}/archive")
 async def archive_project(project_id: int, payload: ActorOperation, db: Session = Depends(get_db)):
     project = require_project(db, project_id, writable=True)
@@ -129,6 +150,7 @@ async def reactivate_project(project_id: int, payload: ActorOperation, db: Sessi
     audit(db, project_id=project.id, technician=payload.technician_name, action="project.reactivated",
           field="archived", old=True, new=False)
     db.commit()
+    await manager.broadcast(project.id, {"type": "project.reactivated", "project_revision": project.revision})
     return {"id": project.id, "archived": False, "revision": project.revision}
 
 
@@ -166,7 +188,8 @@ async def resize_bay(bay_id: int, payload: BayResize, db: Session = Depends(get_
                 by_position[position].retired_at = None
                 by_position[position].version += 1
             else:
-                db.add(Truss(bay_id=bay.id, position=position, label=str(position)))
+                label = f"{bay_code(bay.position)}{position}" if project.labeling_scheme == "bay_prefix" else str(position)
+                db.add(Truss(bay_id=bay.id, position=position, label=label))
         project.revision += 1
         audit(db, project_id=project.id, bay_id=bay.id, technician=payload.technician_name,
               action="bay.resized", field="truss_count", old=current, new=payload.truss_count)
@@ -279,7 +302,9 @@ async def add_pair(bay_id: int, payload: DilationPairCreate, db: Session = Depen
     if a.bay_id != bay_id or b.bay_id != bay_id:
         raise HTTPException(422, "Oba vazníky musí patřit do zvolené lodě.")
     pair = create_pair(db, a, b, payload.technician_name, payload.expected_version_a, payload.expected_version_b)
-    await manager.broadcast(a.bay.project_id, {"type": "dilation_pair.created", "bay_id": bay_id, "pair_id": pair.id})
+    project = db.get(Project, a.bay.project_id)
+    await manager.broadcast(project.id, {"type": "dilation_pair.created", "bay_id": bay_id,
+                                         "pair_id": pair.id, "project_revision": project.revision})
     return {"id": pair.id, "members": [truss_dict(a), truss_dict(b)]}
 
 
@@ -293,7 +318,9 @@ async def delete_pair(pair_id: int, payload: DilationPairRemove, db: Session = D
         raise HTTPException(404, "Dilatační dvojice nebyla nalezena.")
     trusses = remove_pair(db, pair, payload.technician_name, payload.type_a, payload.type_b,
                           payload.expected_version_a, payload.expected_version_b)
-    await manager.broadcast(pair.bay.project_id, {"type": "dilation_pair.removed", "bay_id": pair.bay_id})
+    project = db.get(Project, pair.bay.project_id)
+    await manager.broadcast(project.id, {"type": "dilation_pair.removed", "bay_id": pair.bay_id,
+                                         "project_revision": project.revision})
     return {"removed": pair_id, "members": [truss_dict(t) for t in trusses]}
 
 

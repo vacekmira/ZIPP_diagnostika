@@ -1,0 +1,12 @@
+.git
+.venv
+.env
+.env.docker
+data
+outputs
+work
+__pycache__
+.pytest_cache
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

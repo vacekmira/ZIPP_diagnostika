@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,8 +13,16 @@ class Settings(BaseSettings):
     public_url: str = ""
     debug: bool = False
     backup_retention: int = 30
+    session_secret: str = "development-only-change-me"
+    session_cookie_secure: bool = False
+    session_max_age: int = 604800
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("session_secret", mode="before")
+    @classmethod
+    def use_safe_development_default_for_blank_secret(cls, value):
+        return value or "development-only-change-me"
 
     @property
     def database_url(self) -> str:

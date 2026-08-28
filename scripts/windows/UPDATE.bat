@@ -7,7 +7,7 @@ if not exist .venv\Scripts\python.exe (
   exit /b 1
 )
 call .venv\Scripts\activate.bat
-echo Vytvarim povinnou predaktualizacni zalohu...
+echo Vytvarim povinnou a overenou predaktualizacni zalohu...
 python -m scripts.backup --prefix preupdate
 if errorlevel 1 goto :error
 where git >nul 2>nul
@@ -19,9 +19,17 @@ git pull --ff-only
 if errorlevel 1 goto :error
 python -m pip install -e ".[test]"
 if errorlevel 1 goto :error
+python -m app.cli ensure-session-secret --env .env
+if errorlevel 1 goto :error
 alembic upgrade head
 if errorlevel 1 goto :error
-echo Aktualizace a migrace byly dokonceny. Spustte START.bat.
+python -m app.cli ensure-password
+if errorlevel 1 goto :error
+python -m app.cli check-schema
+if errorlevel 1 goto :error
+python -c "from app.main import health; result=health(); assert result['status']=='ok'; print('Health check:', result)"
+if errorlevel 1 goto :error
+echo Aktualizace, migrace a kontrola databaze byly dokonceny. Spustte START.bat.
 pause
 exit /b 0
 :error

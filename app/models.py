@@ -14,12 +14,14 @@ def utcnow() -> datetime:
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (CheckConstraint("labeling_scheme IN ('legacy','bay_prefix')", name="ck_project_labeling_scheme"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     revision: Mapped[int] = mapped_column(Integer, default=1)
+    labeling_scheme: Mapped[str] = mapped_column(String(16), default="bay_prefix")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -113,3 +115,15 @@ class AuditLog(Base):
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_app_settings_singleton"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    auth_version: Mapped[int] = mapped_column(Integer, default=1)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

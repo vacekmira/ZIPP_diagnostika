@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123a32">
+  <title>{{ tr('login.title') }} · {{ tr('app.name') }}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/alpha2.css">
+  <script>window.ZIPP_I18N={{ i18n_json|safe }};window.ZIPP_LANG={{ lang|tojson }};</script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body class="login-page">
+  <div class="login-language language-switch">
+    <button type="button" data-language="cs" class="{{ 'active' if lang == 'cs' }}">CZ</button>
+    <button type="button" data-language="sk" class="{{ 'active' if lang == 'sk' }}">SK</button>
+  </div>
+  <main class="login-card">
+    <div class="login-mark">Z</div>
+    <p class="eyebrow">{{ tr('app.name') }}</p>
+    <h1>{{ tr('login.title') }}</h1>
+    {% if error %}<div class="notice danger" role="alert">{{ error }}</div>{% endif %}
+    {% if not configured %}<div class="notice warning">{{ tr('login.not_configured') }}</div>{% endif %}
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>{{ tr('login.password') }}
+        <input type="password" name="password" autocomplete="current-password" required autofocus>
+      </label>
+      <button class="button primary" {{ 'disabled' if not configured }}>{{ tr('login.submit') }}</button>
+    </form>
+  </main>
+</body>
+</html>

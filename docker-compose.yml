@@ -1,0 +1,36 @@
+services:
+  app:
+    build:
+      context: .
+    image: zipp-diagnostics:alpha2
+    restart: unless-stopped
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      DATABASE_PATH: /data/db/zipp.sqlite3
+      BACKUP_PATH: /data/backups
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      DEBUG: "false"
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_MAX_AGE: ${SESSION_MAX_AGE:-604800}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - "${ZIPP_DATA_ROOT:-./data}:/data"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["cloudflare"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      app:
+        condition: service_healthy

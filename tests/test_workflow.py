@@ -5,19 +5,22 @@ from app.models import AuditLog, DilationPair, Project, Truss
 
 def test_project_creates_bays_and_default_labels(client, project):
     assert len(project["bays"]) == 2
-    assert [t["label"] for t in project["bays"][0]["trusses"]] == ["1", "2", "3", "4"]
+    assert [bay["name"] for bay in project["bays"]] == ["Loď A", "Loď B"]
+    assert [t["label"] for t in project["bays"][0]["trusses"]] == ["A1", "A2", "A3", "A4"]
     assert project["progress"] == {"completed": 0, "required": 16, "remaining": 16, "excluded": 0, "percent": 0}
 
 
 def test_main_html_pages_render_without_external_dependencies(client, project):
     assert client.get("/").status_code == 200
     assert client.get(f"/projects/{project['id']}").status_code == 200
+    assert client.get(f"/projects/{project['id']}/plan").status_code == 200
     bay_id = project["bays"][0]["id"]
     assert client.get(f"/bays/{bay_id}").status_code == 200
     assert client.get(f"/bays/{bay_id}/settings").status_code == 200
     truss_id = project["bays"][0]["trusses"][0]["id"]
     assert client.get(f"/trusses/{truss_id}").status_code == 200
     assert client.get("/static/app.css").status_code == 200
+    assert client.get("/static/alpha2.css").status_code == 200
     assert "https://" not in client.get("/static/app.css").text
 
 

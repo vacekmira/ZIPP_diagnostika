@@ -27,14 +27,27 @@ if not exist .env (
   >>.env echo PUBLIC_URL=
   >>.env echo DEBUG=false
   >>.env echo BACKUP_RETENTION=30
+  >>.env echo SESSION_COOKIE_SECURE=false
+  >>.env echo SESSION_MAX_AGE=604800
+)
+python -m app.cli ensure-session-secret --env .env
+if errorlevel 1 goto :error
+if exist "%DATA_ROOT%\db\zipp.sqlite3" (
+  echo Vytvarim povinnou zalohu pred migraci...
+  python -m scripts.backup --prefix preinstall
+  if errorlevel 1 goto :error
 )
 alembic upgrade head
 if errorlevel 1 goto :error
+python -m app.cli ensure-password
+if errorlevel 1 goto :error
+python -m app.cli check-schema
+if errorlevel 1 goto :error
 echo.
-echo Instalace dokoncena. Spustte START.bat.
+echo Instalace Alpha 2 dokoncena. Spustte START.bat.
 pause
 exit /b 0
 :error
-echo CHYBA: Instalace nebyla dokoncena. Existujici data nebyla smazana.
+echo CHYBA: Instalace nebyla dokoncena. Existujici data ani zalohy nebyly smazany.
 pause
 exit /b 1

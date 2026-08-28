@@ -4,6 +4,21 @@
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const toast = $("[data-toast]");
   let technician = localStorage.getItem(storageKey) || "";
+  const storedLanguage = localStorage.getItem("zipp.language");
+  let language = ["cs", "sk"].includes(storedLanguage) ? storedLanguage : (window.ZIPP_LANG || "cs");
+  const catalog = window.ZIPP_I18N || {};
+  const t = (key) => catalog[language]?.[key] || catalog.cs?.[key] || key;
+
+  $$('[data-language]').forEach((button) => button.addEventListener("click", () => {
+    language = button.dataset.language === "sk" ? "sk" : "cs";
+    localStorage.setItem("zipp.language", language);
+    document.cookie = `zipp_language=${language}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    location.reload();
+  }));
+  if (document.cookie.match(/(?:^|; )zipp_language=([^;]+)/)?.[1] !== language) {
+    document.cookie = `zipp_language=${language}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    if (window.ZIPP_LANG !== language) location.reload();
+  }
 
   function notify(message, kind = "ok") {
     if (!toast) return;
@@ -17,13 +32,13 @@
   function technicianName() {
     if (!technician) {
       openTechnicianDialog();
-      throw new Error("Nejprve zadejte jméno technika.");
+      throw new Error(t("error.technician"));
     }
     return technician;
   }
 
   function updateTechnicianUI() {
-    $$('[data-technician-name]').forEach((node) => { node.textContent = technician || "Nastavit"; });
+    $$('[data-technician-name]').forEach((node) => { node.textContent = technician || t("tech.set"); });
   }
 
   function openTechnicianDialog() {
@@ -43,7 +58,25 @@
     try { data = await response.json(); } catch (_) { /* response has no JSON */ }
     if (!response.ok) {
       const detail = data?.detail;
-      const message = typeof detail === "string" ? detail : detail?.message || data?.message || "Změnu se nepodařilo uložit.";
+      if (response.status === 401) {
+        location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+      }
+      const serverMessages = {
+        "Na vyřazeném vazníku nelze měnit diagnostiku.": "error.excluded",
+        "Archivovanou zakázku je nutné nejprve reaktivovat.": "error.archived",
+        "Vazník mezitím změnil jiný technik.": "error.conflict",
+        "Pro důvod Jiné je poznámka povinná.": "error.other_note",
+        "Vazník je v dilatační dvojici; změňte celou dvojici.": "error.pair_member",
+        "Dilatační typ lze vytvořit pouze jako dvojici.": "error.pair_only",
+        "Dilatační dvojici mohou tvořit pouze dva sousední vazníky ve stejné lodi.": "error.pair_adjacent",
+        "Jeden z vazníků už je součástí jiné dilatační dvojice.": "error.pair_exists",
+        "Vyřazený vazník nelze zařadit do dilatační dvojice.": "error.pair_excluded",
+        "Zmenšení skryje vazníky s existujícími daty.": "error.resize_data",
+        "Zmenšení by rozdělilo dilatační dvojici.": "error.resize_pair",
+      };
+      const raw = typeof detail === "string" ? detail : detail?.message || data?.message;
+      const message = serverMessages[raw] ? t(serverMessages[raw])
+        : (raw === "authentication_required" ? t("error.auth") : (Array.isArray(detail) ? t("error.validation") : raw)) || t("save.failed");
       const error = new Error(message);
       error.status = response.status;
       error.data = data;
@@ -62,7 +95,7 @@
     localStorage.setItem(storageKey, technician);
     updateTechnicianUI();
     techForm.closest("dialog").close();
-    notify(`Technik nastaven: ${technician}`);
+    notify(`${t("tech.current")}: ${technician}`);
   });
   if (!technician) openTechnicianDialog();
 
@@ -85,7 +118,7 @@
 
   $$('[data-project-state]').forEach((button) => button.addEventListener("click", async () => {
     const action = button.dataset.projectState;
-    if (action === "archive" && !confirm("Archivovat zakázku? V archivu bude pouze pro čtení.")) return;
+    if (action === "archive" && !confirm(t("confirm.archive"))) return;
     try {
       await api(`/api/projects/${button.dataset.project}/${action}`, { method: "POST", body: JSON.stringify({ technician_name: technicianName() }) });
       location.reload();
@@ -95,7 +128,7 @@
   function renderSide(button, done) {
     button.classList.toggle("done", done);
     button.setAttribute("aria-pressed", String(done));
-    button.querySelector("strong").textContent = done ? "✓ Hotovo" : "○ Neprovedeno";
+    button.querySelector("strong").textContent = done ? `✓ ${t("state.done")}` : `○ ${t("state.pending")}`;
   }
 
   function updateTruss(data) {
@@ -105,7 +138,7 @@
     const label = $("[data-label]", row);
     const type = $("[data-type]", row);
     if (label) label.textContent = data.label;
-    if (type) type.textContent = data.type_label;
+    if (type) type.textContent = t(`type.${data.type}`);
     const left = $('[data-side="left"]', row);
     const right = $('[data-side="right"]', row);
     if (left) renderSide(left, data.left_done);
@@ -122,7 +155,7 @@
         body: JSON.stringify({ done, technician_name: technicianName(), expected_version: Number(row.dataset.version) }),
       });
       updateTruss(data);
-      notify(`${button.dataset.side === "left" ? "Levá" : "Pravá"} strana uložena`);
+      notify(t(button.dataset.side === "left" ? "save.left" : "save.right"));
       refreshProgress(row.closest("[data-bay-id]")?.dataset.bayId);
     } catch (error) {
       notify(error.message, "error");
@@ -135,7 +168,7 @@
     try {
       const bay = await api(`/api/bays/${bayId}`);
       const target = $("[data-bay-progress]");
-      if (target) target.textContent = `${bay.progress.completed} / ${bay.progress.required} stran hotovo · ${bay.progress.remaining} zbývá`;
+      if (target) target.textContent = `${bay.progress.completed} / ${bay.progress.required} ${t("progress.done")} · ${bay.progress.remaining} ${t("progress.remaining")}`;
     } catch (_) { /* reconnect will resync */ }
   }
 
@@ -146,7 +179,7 @@
       await api(`/api/bays/${bayNameForm.dataset.bayId}`, { method: "PATCH", body: JSON.stringify({
         name: new FormData(bayNameForm).get("name"), technician_name: technicianName(),
       }) });
-      notify("Název lodě uložen");
+      notify(t("save.bay_name"));
     } catch (error) { notify(error.message, "error"); }
   });
 
@@ -159,7 +192,7 @@
     }) });
     try { await send(false); location.reload(); }
     catch (error) {
-      if (error.status === 409 && error.data?.detail?.confirmation_required && confirm("Dotčené vazníky obsahují data. Budou zachovány v historii, ale skryty z aktuální struktury. Pokračovat?")) {
+      if (error.status === 409 && error.data?.detail?.confirmation_required && confirm(t("confirm.resize"))) {
         try { await send(true); location.reload(); } catch (secondError) { notify(secondError.message, "error"); }
       } else notify(error.message, "error");
     }
@@ -176,7 +209,7 @@
       for (const row of rows) {
         const select = $('[name="type"]', row);
         if (!select.disabled) {
-          const current = select.querySelector("option[selected]")?.value || "normal";
+          const current = row.dataset.currentType || "normal";
           if (select.value !== current) {
             const updated = await api(`/api/trusses/${row.dataset.trussId}/type`, { method: "PATCH", body: JSON.stringify({
               type: select.value, technician_name: technicianName(), expected_version: Number(row.dataset.version),
@@ -185,7 +218,7 @@
           }
         }
       }
-      notify("Označení a typy uloženy");
+      notify(t("save.labels"));
       setTimeout(() => location.reload(), 500);
     } catch (error) { notify(error.message, "error"); }
   });
@@ -206,7 +239,7 @@
   });
 
   $$('[data-remove-pair]').forEach((button) => button.addEventListener("click", async () => {
-    if (!confirm("Zrušit celou dilatační dvojici a nastavit oba vazníky jako běžné?")) return;
+    if (!confirm(t("confirm.remove_pair"))) return;
     try {
       await api(`/api/dilation-pairs/${button.dataset.removePair}/remove`, { method: "POST", body: JSON.stringify({
         technician_name: technicianName(), type_a: "normal", type_b: "normal",
@@ -240,38 +273,80 @@
 
   $$('[data-local-time]').forEach((time) => {
     const value = new Date(time.dateTime);
-    if (!Number.isNaN(value.valueOf())) time.textContent = value.toLocaleString("cs-CZ");
+    if (!Number.isNaN(value.valueOf())) time.textContent = value.toLocaleString(language === "sk" ? "sk-SK" : "cs-CZ");
   });
 
   const projectId = document.body.dataset.projectId;
   const connection = $("[data-connection]");
+  $$('[data-side]').forEach((button) => { button.dataset.readonly = String(button.disabled); });
   let socket;
   let retry = 1000;
   let reloadTimer;
+  let reconnectTimer;
+  let heartbeatTimer;
+  let pongTimer;
+  let intentionalClose = false;
   function connectionState(state, text) {
     if (!connection) return;
     connection.dataset.state = state;
     connection.querySelector("span").textContent = text;
-    $$('[data-side]').forEach((button) => { if (state === "offline") button.disabled = true; else if (!button.closest(".is-excluded")) button.disabled = false; });
+    $$('[data-side]').forEach((button) => {
+      if (state !== "online") button.disabled = true;
+      else if (!button.closest(".is-excluded") && button.dataset.readonly !== "true") button.disabled = false;
+    });
   }
   function connect() {
     if (!projectId) return;
+    if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    connectionState("connecting", "Připojuji…");
+    connectionState("connecting", t("connection.connecting"));
     socket = new WebSocket(`${protocol}//${location.host}/ws/projects/${projectId}`);
-    socket.onopen = () => { retry = 1000; connectionState("online", "Připojeno"); refreshProgress($("[data-bay-id]")?.dataset.bayId); };
+    socket.onopen = () => {
+      retry = 1000;
+      connectionState("online", t("connection.online"));
+      refreshProgress($("[data-bay-id]")?.dataset.bayId);
+      clearInterval(heartbeatTimer);
+      const ping = () => {
+        if (socket?.readyState !== WebSocket.OPEN) return;
+        socket.send("ping");
+        clearTimeout(pongTimer);
+        pongTimer = setTimeout(() => socket?.close(4000, "heartbeat_timeout"), 12000);
+      };
+      ping();
+      heartbeatTimer = setInterval(ping, 20000);
+    };
     socket.onmessage = (event) => {
-      if (event.data === "pong") return;
+      if (event.data === "pong") { clearTimeout(pongTimer); return; }
       let message; try { message = JSON.parse(event.data); } catch (_) { return; }
       if (message.truss) updateTruss(message.truss);
       if (message.bay_id === Number($("[data-bay-id]")?.dataset.bayId)) refreshProgress(message.bay_id);
-      if (["bay.resized", "dilation_pair.created", "dilation_pair.removed", "truss.excluded", "truss.restored"].includes(message.type)) {
+      const planImage = $("[data-plan-image]");
+      if (["project.archived", "project.reactivated"].includes(message.type)) {
+        clearTimeout(reloadTimer); reloadTimer = setTimeout(() => location.reload(), 300);
+      }
+      if (!planImage && ["bay.resized", "dilation_pair.created", "dilation_pair.removed", "truss.excluded", "truss.restored"].includes(message.type)) {
         clearTimeout(reloadTimer); reloadTimer = setTimeout(() => location.reload(), 600);
       }
+      if (planImage && message.type !== "connected") {
+        const url = new URL(planImage.src);
+        url.searchParams.set("revision", message.project_revision || Date.now());
+        planImage.src = url.toString();
+      }
     };
-    socket.onclose = () => { connectionState("offline", "Odpojeno"); setTimeout(connect, retry); retry = Math.min(retry * 1.7, 15000); };
-    socket.onerror = () => socket.close();
+    socket.onclose = (event) => {
+      clearInterval(heartbeatTimer); clearTimeout(pongTimer);
+      if (event.code === 4401) { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; return; }
+      if (intentionalClose) return;
+      connectionState("offline", t("connection.offline"));
+      clearTimeout(reconnectTimer);
+      const jitter = Math.round(Math.random() * 350);
+      reconnectTimer = setTimeout(connect, retry + jitter);
+      retry = Math.min(retry * 1.7, 15000);
+    };
+    socket.onerror = () => { /* onclose owns reconnect and UI state */ };
   }
   connect();
-  setInterval(() => { if (socket?.readyState === WebSocket.OPEN) socket.send("ping"); }, 25000);
+  addEventListener("online", connect);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) connect(); });
+  addEventListener("beforeunload", () => { intentionalClose = true; clearTimeout(reconnectTimer); clearInterval(heartbeatTimer); });
 })();

@@ -1,0 +1,23 @@
+.language-switch{display:flex;align-items:center;gap:2px;padding:3px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(255,255,255,.06)}
+.language-switch button{border:0;border-radius:999px;background:transparent;color:inherit;padding:6px 8px;font-size:.72rem;font-weight:900;cursor:pointer}
+.language-switch button.active{background:#fff;color:var(--green)}
+.logout-button{border:0;background:transparent;color:#e8f0ed;font-size:.8rem;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.3);padding:4px;cursor:pointer}
+.project-tabs{display:flex;gap:4px;margin:-10px 0 28px;padding:4px;width:max-content;max-width:100%;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 4px 15px rgba(20,42,36,.05)}
+.project-tabs a{padding:9px 15px;border-radius:8px;text-decoration:none;color:var(--muted);font-size:.88rem;font-weight:800;white-space:nowrap}
+.project-tabs a.active{background:var(--green);color:#fff}
+.login-page{display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 8%,#e4eee6 0,transparent 38%),var(--paper)}
+.login-language{position:fixed;top:22px;right:22px;color:var(--green);border-color:#b7c5bf;background:#fff}
+.login-language button.active{background:var(--green);color:#fff}
+.login-card{width:min(440px,100%);padding:34px;border:1px solid var(--line);border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(20,42,36,.14)}
+.login-mark{display:grid;place-items:center;width:48px;height:48px;margin-bottom:24px;border-radius:13px;background:var(--green);color:#fff;font:700 1.8rem Georgia,"Times New Roman",serif;box-shadow:0 8px 22px rgba(18,58,50,.22)}
+.login-card h1{margin:5px 0 9px;font:500 2.6rem/1 Georgia,"Times New Roman",serif}
+.login-card>.eyebrow{margin:0}
+.login-card form{display:flex;flex-direction:column;gap:15px;margin-top:25px}
+.login-card form label{display:flex;flex-direction:column;gap:7px;font-size:.84rem;font-weight:800;color:#41504b}
+.login-card form .button{margin-top:2px}
+.plan-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px}
+.plan-toolbar p{margin:0;color:var(--muted)}
+.plan-viewport{overflow:auto;min-height:340px;padding:18px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:var(--shadow)}
+.plan-viewport img{display:block;max-width:none;width:auto;height:auto}
+@media(max-width:900px){.topbar-actions{gap:7px}.logout-button{display:none}.plan-toolbar{align-items:flex-start;flex-direction:column}.project-tabs{overflow-x:auto;width:100%}}
+@media(max-width:560px){.topbar .technician-pill{max-width:120px;font-size:.75rem}.login-language{display:flex}.login-card{padding:25px}.project-tabs a{flex:1;text-align:center}.plan-viewport{margin-left:-12px;margin-right:-12px;border-radius:0;border-left:0;border-right:0}}
