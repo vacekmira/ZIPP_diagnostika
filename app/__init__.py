@@ -1,3 +1,4 @@
 """ZIPP Diagnostics application."""
 
-__version__ = "0.2.0-alpha.2"
+APP_VERSION = "Alpha 4"
+__version__ = APP_VERSION

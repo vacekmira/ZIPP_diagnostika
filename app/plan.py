@@ -12,11 +12,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from svglib.svglib import svg2rlg
 
+from . import APP_VERSION
 from .domain import bay_code
 from .i18n import translator
 
 
 TRUSS_SPACING = 72
+DILATION_INTERNAL_SPACING = 28
 BAY_DEPTH = 176
 MARGIN_LEFT = 112
 MARGIN_RIGHT = 245
@@ -38,6 +40,7 @@ class BayGeometry:
     top: float
     bottom: float
     center: float
+    distance_by_id: dict[int, float]
 
 
 @dataclass(frozen=True)
@@ -48,24 +51,39 @@ class PlanGeometry:
     right: float
     bays: tuple[BayGeometry, ...]
     boundaries: tuple[BoundaryGeometry, ...]
-    first_position: int
+
+
+def _truss_distances(bay: dict) -> dict[int, float]:
+    """Return right-to-left drawing distances based only on persisted data."""
+    visible = sorted(bay["trusses"], key=lambda item: item["position"])
+    if not visible:
+        return {}
+    distances = {visible[0]["id"]: 0.0}
+    distance = 0.0
+    for previous, current in zip(visible, visible[1:]):
+        position_delta = max(current["position"] - previous["position"], 1)
+        explicit_pair = (
+            position_delta == 1
+            and previous.get("pair_id") is not None
+            and previous.get("pair_id") == current.get("pair_id")
+        )
+        distance += DILATION_INTERNAL_SPACING if explicit_pair else TRUSS_SPACING * position_delta
+        distances[current["id"]] = distance
+    return distances
 
 
 def build_plan_geometry(project: dict, bay_ids: set[int] | None = None) -> PlanGeometry:
     """Build one continuous hall geometry shared by SVG and every PDF output."""
     selected = [bay for bay in project["bays"] if bay_ids is None or bay["id"] in bay_ids]
     display_bays = sorted(selected, key=lambda item: item["position"], reverse=True)
-    positions = [
-        truss["position"]
-        for bay in display_bays
-        for truss in bay["trusses"]
-    ]
-    first_position = min(positions, default=1)
-    last_position = max(positions, default=first_position)
-    position_span = max(last_position - first_position + 1, 1)
-    width = max(960, MARGIN_LEFT + MARGIN_RIGHT + (position_span - 1) * TRUSS_SPACING)
+    distances_by_bay = {bay["id"]: _truss_distances(bay) for bay in display_bays}
+    horizontal_span = max(
+        (max(distances.values(), default=0) for distances in distances_by_bay.values()),
+        default=0,
+    )
+    width = max(960, MARGIN_LEFT + MARGIN_RIGHT + horizontal_span)
     right = width - MARGIN_RIGHT
-    left = right - (position_span - 1) * TRUSS_SPACING
+    left = right - horizontal_span
     object_top = HEADER_HEIGHT
 
     bay_geometry: list[BayGeometry] = []
@@ -73,7 +91,13 @@ def build_plan_geometry(project: dict, bay_ids: set[int] | None = None) -> PlanG
     for display_index, bay in enumerate(display_bays):
         top = object_top + display_index * BAY_DEPTH
         bottom = top + BAY_DEPTH
-        geometry = BayGeometry(bay=bay, top=top, bottom=bottom, center=(top + bottom) / 2)
+        geometry = BayGeometry(
+            bay=bay,
+            top=top,
+            bottom=bottom,
+            center=(top + bottom) / 2,
+            distance_by_id=distances_by_bay[bay["id"]],
+        )
         bay_geometry.append(geometry)
         # A bay at position 1 lies between boundary A (index 0) and B (index 1).
         boundaries[bay["position"]] = BoundaryGeometry(
@@ -92,7 +116,6 @@ def build_plan_geometry(project: dict, bay_ids: set[int] | None = None) -> PlanG
         right=right,
         bays=tuple(bay_geometry),
         boundaries=tuple(sorted(boundaries.values(), key=lambda item: item.y)),
-        first_position=first_position,
     )
 
 
@@ -120,25 +143,69 @@ def _truss_annotation(truss: dict, tr) -> str:
     return ""
 
 
-def render_plan_svg(project: dict, language: str = "cs", bay_ids: set[int] | None = None) -> str:
+def _wrapped_svg_text(value: str, x: float, center_y: float, css_class: str, max_chars: int = 17) -> str:
+    """Wrap long bay names into the fixed annotation margin without clipping."""
+    words: list[str] = []
+    for word in value.split():
+        if len(word) <= max_chars:
+            words.append(word)
+        else:
+            words.extend(word[index:index + max_chars] for index in range(0, len(word), max_chars))
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and len(candidate) > max_chars:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    lines = lines or [value]
+    line_height = 17
+    first_y = center_y - ((len(lines) - 1) * line_height) / 2 + 5
+    spans = "".join(
+        f'<tspan x="{x}" y="{first_y + index * line_height}">{escape(line)}</tspan>'
+        for index, line in enumerate(lines)
+    )
+    return f'<text x="{x}" y="{first_y}" class="{css_class}">{spans}</text>'
+
+
+def render_plan_svg(
+    project: dict,
+    language: str = "cs",
+    bay_ids: set[int] | None = None,
+    font_scale: float = 1.0,
+) -> str:
     tr = translator(language)
     geometry = build_plan_geometry(project, bay_ids)
     right = geometry.right
     axis_left = geometry.left - 18
     axis_right = right + 18
+    title_size = 24 * font_scale
+    title_width = geometry.width - MARGIN_LEFT - 30
+    title_length = len(project["name"]) * title_size * 0.58
+    title_fit = (
+        f' textLength="{title_width}" lengthAdjust="spacingAndGlyphs"'
+        if title_length > title_width else ""
+    )
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{geometry.width}" height="{geometry.height}" '
         f'viewBox="0 0 {geometry.width} {geometry.height}" role="img" aria-labelledby="title desc">',
         '<style>text{font-family:ZippSans,"DejaVu Sans",Arial,sans-serif;fill:#17201e}'
-        '.small{font-size:12px}.label{font-size:13px;font-weight:700}.bay{font-size:16px;font-weight:700}'
+        f'.small{{font-size:{12 * font_scale:g}px}}.label{{font-size:{13 * font_scale:g}px;font-weight:700}}'
+        f'.bay{{font-size:{16 * font_scale:g}px;font-weight:700}}'
         '.muted{fill:#63706c}.axis{stroke:#7d8985;stroke-width:1.4;stroke-dasharray:14 7 2 7}'
-        '.pair{stroke:#9a6500;stroke-width:2.2;fill:none}.legend-text{font-size:12px}'
-        '.boundary-circle{fill:#fff;stroke:#3254c7;stroke-width:1.4}.boundary-label{fill:#3254c7;font-size:13px;font-weight:700}</style>',
+        f'.pair{{stroke:#9a6500;stroke-width:2.2;fill:none}}.legend-text{{font-size:{12 * font_scale:g}px}}'
+        f'.boundary-circle{{fill:#fff;stroke:#3254c7;stroke-width:1.4}}'
+        f'.boundary-label{{fill:#3254c7;font-size:{13 * font_scale:g}px;font-weight:700}}</style>',
         f'<title id="title">{escape(tr("plan.title"))} - {escape(project["name"])}</title>',
         f'<desc id="desc">{escape(tr("plan.description"))}</desc>',
         '<rect width="100%" height="100%" fill="#fff"/>',
-        f'<text x="{MARGIN_LEFT}" y="34" font-size="24" font-weight="700">{escape(project["name"])}</text>',
-        f'<text x="{MARGIN_LEFT}" y="57" class="small muted">{escape(tr("plan.title"))}</text>',
+        f'<text x="{MARGIN_LEFT}" y="34" font-size="{title_size:g}" font-weight="700"{title_fit}>'
+        f'{escape(project["name"])}</text>',
+        f'<text x="{MARGIN_LEFT}" y="57" class="small muted">{escape(tr("plan.title"))} - {escape(APP_VERSION)}</text>',
     ]
 
     # Shared boundaries are emitted exactly once for the entire hall.
@@ -157,14 +224,14 @@ def render_plan_svg(project: dict, language: str = "cs", bay_ids: set[int] | Non
         parts += [
             f'<g data-bay-id="{bay["id"]}" data-bay-position="{bay["position"]}" '
             f'data-top="{top}" data-bottom="{bottom}">',
-            f'<text x="{right + 104}" y="{center + 5}" class="bay">{escape(bay["name"])}</text>',
+            _wrapped_svg_text(bay["name"], right + 104, center, "bay"),
             f'<text x="{right + 30}" y="{top + 21}" class="label" style="fill:#3254c7">P</text>',
             f'<text x="{right + 30}" y="{bottom - 9}" class="label" style="fill:#3254c7">L</text>',
         ]
         visible = sorted(bay["trusses"], key=lambda item: item["position"])
         x_by_id: dict[int, float] = {}
         for truss in visible:
-            x = right - (truss["position"] - geometry.first_position) * TRUSS_SPACING
+            x = right - bay_geometry.distance_by_id[truss["id"]]
             x_by_id[truss["id"]] = x
             color, dash, line_width = _stroke(truss)
             dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
@@ -269,9 +336,14 @@ def register_pdf_fonts() -> None:
             pdfmetrics.registerFontFamily("ZippSans", normal="ZippSans", bold="ZippSansBold")
 
 
-def svg_drawing(project: dict, language: str = "cs", bay_ids: set[int] | None = None):
+def svg_drawing(
+    project: dict,
+    language: str = "cs",
+    bay_ids: set[int] | None = None,
+    font_scale: float = 1.0,
+):
     register_pdf_fonts()
-    drawing = svg2rlg(io.BytesIO(render_plan_svg(project, language, bay_ids).encode("utf-8")))
+    drawing = svg2rlg(io.BytesIO(render_plan_svg(project, language, bay_ids, font_scale).encode("utf-8")))
     if drawing is None:
         raise RuntimeError("SVG se nepodařilo převést do PDF.")
     return drawing
@@ -281,15 +353,29 @@ def _pdf_projects(project: dict) -> list[dict]:
     positions = [truss["position"] for bay in project["bays"] for truss in bay["trusses"]]
     if not positions or max(positions) - min(positions) + 1 <= PDF_TRUSSES_PER_PAGE:
         return [project]
+    protected_breaks: set[int] = set()
+    for bay in project["bays"]:
+        members: dict[int, list[dict]] = {}
+        for truss in bay["trusses"]:
+            if truss.get("pair_id"):
+                members.setdefault(truss["pair_id"], []).append(truss)
+        for pair in members.values():
+            pair_positions = sorted(item["position"] for item in pair)
+            if len(pair_positions) == 2 and pair_positions[1] == pair_positions[0] + 1:
+                protected_breaks.add(pair_positions[0])
     pages: list[dict] = []
     first, last = min(positions), max(positions)
-    for start in range(first, last + 1, PDF_TRUSSES_PER_PAGE):
+    start = first
+    while start <= last:
         end = min(start + PDF_TRUSSES_PER_PAGE - 1, last)
+        if end < last and end in protected_breaks:
+            end -= 1
         page = deepcopy(project)
         page["name"] = f'{project["name"]} - {start}-{end}'
         for bay in page["bays"]:
             bay["trusses"] = [truss for truss in bay["trusses"] if start <= truss["position"] <= end]
         pages.append(page)
+        start = end + 1
     return pages
 
 
@@ -298,6 +384,9 @@ def render_plan_pdf(project: dict, language: str = "cs") -> bytes:
     page_size = landscape(A3)
     output = io.BytesIO()
     pdf = canvas.Canvas(output, pagesize=page_size, pageCompression=1)
+    pdf.setTitle(f'{project["name"]} - {APP_VERSION}')
+    pdf.setAuthor("ZIPP Diagnostika")
+    pdf.setSubject(APP_VERSION)
     page_projects = _pdf_projects(project)
     for page_number, page_project in enumerate(page_projects, start=1):
         drawing = svg_drawing(page_project, language)
@@ -313,6 +402,7 @@ def render_plan_pdf(project: dict, language: str = "cs") -> bytes:
         renderPDF.draw(drawing, pdf, 0, 0)
         pdf.restoreState()
         pdf.setFont("ZippSans", 8)
+        pdf.drawString(18, 12, f"ZIPP Diagnostika - {APP_VERSION}")
         pdf.drawRightString(page_size[0] - 18, 12, f"{page_number}/{len(page_projects)}")
         pdf.showPage()
     pdf.save()

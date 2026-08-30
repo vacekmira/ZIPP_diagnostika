@@ -12,5 +12,6 @@ logs/
 *.sqlite3-wal
 
 outputs/
+output/
 work/
 tmp/

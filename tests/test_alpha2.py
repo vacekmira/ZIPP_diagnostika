@@ -21,6 +21,7 @@ def test_business_pages_api_and_websocket_require_authentication(client, project
     assert client.get(f"/api/projects/{project['id']}/plan.svg").status_code == 401
     assert client.get(f"/api/projects/{project['id']}/plan.pdf").status_code == 401
     assert client.get("/health").status_code == 200
+    assert client.get("/favicon.ico").status_code == 204
     with pytest.raises(WebSocketDisconnect) as rejected:
         with client.websocket_connect(f"/ws/projects/{project['id']}"):
             pass
@@ -104,7 +105,10 @@ def test_critical_default_labels_manual_label_and_plan_symbols(client):
     renamed_bay = client.patch(f"/api/bays/{bay['id']}", json={"name": "Střední loď", "technician_name": "Tester"})
     assert renamed_bay.status_code == 200
     svg = client.get(f"/api/projects/{project['id']}/plan.svg?lang=cs").text
-    for text in ("Střední loď", "V-217", "A1", "A2 · Š", "A3 · D", "A4 · D", "A5 · !", "A6 · ≈", "A7 · J"):
+    for text in (
+        "Střední loď", "V-217", "A1", "A2 - ŠTÍTOVÝ", "A3 - DILATAČNÍ",
+        "A4 - DILATAČNÍ", "A5 - TRHLINA", "A6 - ZATEČENÝ", "A7 - JINÉ",
+    ):
         assert text in svg
     for dash in ('stroke-dasharray="12 5 2 5"', 'stroke-dasharray="9 5"', 'stroke-dasharray="2 5"'):
         assert dash in svg
@@ -127,10 +131,10 @@ def test_plan_realtime_event_and_restore_changes_svg(client):
         }).json()
         event = websocket.receive_json()
         assert event["type"] == "truss.excluded" and event["project_revision"]
-        assert "A1 · !" in client.get(f"/api/projects/{project['id']}/plan.svg").text
+        assert "V1 - TRHLINA" in client.get(f"/api/projects/{project['id']}/plan.svg").text
         restored = client.post(f"/api/trusses/{truss['id']}/restore", json={
             "technician_name": "Tester", "expected_version": excluded["version"],
         })
         assert restored.status_code == 200
         assert websocket.receive_json()["type"] == "truss.restored"
-        assert "A1 · !" not in client.get(f"/api/projects/{project['id']}/plan.svg").text
+        assert "V1 - TRHLINA" not in client.get(f"/api/projects/{project['id']}/plan.svg").text

@@ -73,6 +73,7 @@
         "Vyřazený vazník nelze zařadit do dilatační dvojice.": "error.pair_excluded",
         "Zmenšení skryje vazníky s existujícími daty.": "error.resize_data",
         "Zmenšení by rozdělilo dilatační dvojici.": "error.resize_pair",
+        "Potvrzovací název zakázky nesouhlasí.": "error.project_confirmation",
       };
       const raw = typeof detail === "string" ? detail : detail?.message || data?.message;
       const message = serverMessages[raw] ? t(serverMessages[raw])
@@ -124,6 +125,111 @@
       location.reload();
     } catch (error) { notify(error.message, "error"); }
   }));
+
+  function updateProjectName(projectId, name) {
+    const currentProject = Number(document.body.dataset.projectId) === Number(projectId);
+    if (currentProject) {
+      $$('[data-project-name]').forEach((node) => { node.textContent = name; });
+      document.title = document.title.replace(/^.*?(?= · )/, name);
+      const planImage = $("[data-plan-image]");
+      if (planImage) planImage.alt = `${t("plan.title")} · ${name}`;
+      const deleteForm = $("[data-project-delete-form]");
+      if (deleteForm) {
+        deleteForm.dataset.projectName = name;
+        const shownName = $("[data-delete-project-name]", deleteForm);
+        if (shownName) shownName.textContent = name;
+      }
+    }
+    const card = $(`[data-project-card-id="${projectId}"]`);
+    const cardName = card && $("[data-project-name]", card);
+    if (cardName) cardName.textContent = name;
+  }
+
+  const renameDialog = $("[data-project-rename-dialog]");
+  const renameButton = $("[data-open-project-rename]");
+  const renameForm = $("[data-project-name-form]");
+  if (renameButton && renameDialog) renameButton.addEventListener("click", () => {
+    const input = $("[data-project-name-input]", renameDialog);
+    if (input) input.value = $("[data-project-name]")?.textContent.trim() || input.value;
+    renameDialog.showModal();
+    setTimeout(() => input?.select(), 0);
+  });
+  if (renameForm) renameForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = new FormData(renameForm).get("name");
+    try {
+      const project = await api(`/api/projects/${renameForm.dataset.projectId}/name`, {
+        method: "PATCH", body: JSON.stringify({ name, technician_name: technicianName() }),
+      });
+      updateProjectName(project.id, project.name);
+      renameDialog.close();
+      notify(t("save.project_name"));
+    } catch (error) { notify(error.message, "error"); }
+  });
+
+  const deleteDialog = $("[data-project-delete-dialog]");
+  const deleteButton = $("[data-open-project-delete]");
+  const deleteForm = $("[data-project-delete-form]");
+  if (deleteButton && deleteDialog) deleteButton.addEventListener("click", () => {
+    deleteForm.reset();
+    $("[data-confirm-project-delete]", deleteForm).disabled = true;
+    deleteDialog.showModal();
+    setTimeout(() => deleteForm.elements.confirmation_name.focus(), 0);
+  });
+  if (deleteForm) {
+    const confirmation = deleteForm.elements.confirmation_name;
+    const confirmButton = $("[data-confirm-project-delete]", deleteForm);
+    confirmation.addEventListener("input", () => {
+      confirmButton.disabled = confirmation.value.trim() !== deleteForm.dataset.projectName;
+    });
+    deleteForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (confirmation.value.trim() !== deleteForm.dataset.projectName) return;
+      confirmButton.disabled = true;
+      try {
+        await api(`/api/projects/${deleteForm.dataset.projectId}`, {
+          method: "DELETE",
+          body: JSON.stringify({ confirmation_name: confirmation.value.trim(), technician_name: technicianName() }),
+        });
+        location.href = "/";
+      } catch (error) {
+        notify(error.message, "error");
+        confirmButton.disabled = false;
+      }
+    });
+  }
+
+  const exportStorageKey = "zipp.exportFontSize";
+  const exportDialog = $("[data-bay-export-dialog]");
+  const exportButton = $("[data-open-bay-export]");
+  const exportForm = $("[data-bay-export-form]");
+  if (exportButton && exportDialog && exportForm) exportButton.addEventListener("click", () => {
+    const stored = localStorage.getItem(exportStorageKey);
+    exportForm.elements.font_size.value = ["small", "normal", "larger", "large"].includes(stored) ? stored : "normal";
+    exportDialog.showModal();
+  });
+  if (exportForm) exportForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const fontSize = exportForm.elements.font_size.value;
+    localStorage.setItem(exportStorageKey, fontSize);
+    const link = document.createElement("a");
+    link.href = `/api/bays/${exportForm.dataset.bayId}/report.pdf?lang=${encodeURIComponent(language)}&font_size=${encodeURIComponent(fontSize)}`;
+    link.download = "";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    exportDialog.close();
+  });
+
+  const initialPlanImage = $("[data-plan-image]");
+  if (initialPlanImage) {
+    const alignPositionOne = () => {
+      const viewport = initialPlanImage.closest(".plan-viewport");
+      if (viewport) viewport.scrollLeft = viewport.scrollWidth;
+    };
+    if (initialPlanImage.complete) requestAnimationFrame(alignPositionOne);
+    else initialPlanImage.addEventListener("load", alignPositionOne, { once: true });
+  }
 
   function renderSide(button, done) {
     button.classList.toggle("done", done);
@@ -277,6 +383,7 @@
   });
 
   const projectId = document.body.dataset.projectId;
+  const projectList = $("[data-project-list]");
   const connection = $("[data-connection]");
   $$('[data-side]').forEach((button) => { button.dataset.readonly = String(button.disabled); });
   let socket;
@@ -296,11 +403,12 @@
     });
   }
   function connect() {
-    if (!projectId) return;
+    if (!projectId && !projectList) return;
     if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     connectionState("connecting", t("connection.connecting"));
-    socket = new WebSocket(`${protocol}//${location.host}/ws/projects/${projectId}`);
+    const socketPath = projectId ? `/ws/projects/${projectId}` : "/ws/projects";
+    socket = new WebSocket(`${protocol}//${location.host}${socketPath}`);
     socket.onopen = () => {
       retry = 1000;
       connectionState("online", t("connection.online"));
@@ -319,6 +427,18 @@
       if (event.data === "pong") { clearTimeout(pongTimer); return; }
       let message; try { message = JSON.parse(event.data); } catch (_) { return; }
       if (message.truss) updateTruss(message.truss);
+      if (message.type === "project.renamed" && message.project) {
+        updateProjectName(message.project.id, message.project.name);
+      }
+      if (message.type === "project.deleted") {
+        const card = $(`[data-project-card-id="${message.project_id}"]`);
+        if (card) card.remove();
+        if (Number(projectId) === Number(message.project_id)) {
+          notify(t("project.deleted_redirect"), "error");
+          clearTimeout(reloadTimer); reloadTimer = setTimeout(() => { location.href = "/"; }, 1200);
+          return;
+        }
+      }
       if (message.bay_id === Number($("[data-bay-id]")?.dataset.bayId)) refreshProgress(message.bay_id);
       const planImage = $("[data-plan-image]");
       if (["project.archived", "project.reactivated"].includes(message.type)) {

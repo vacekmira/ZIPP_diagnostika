@@ -1,1 +1,36 @@
-{% extends "base.html" %}{% block title %}{{ tr('projects') }} · {{ tr('app.name') }}{% endblock %}{% block content %}<section class="hero"><div><p class="eyebrow">{{ tr('projects.eyebrow') }}</p><h1>{{ tr('projects.active') }}</h1><p>{{ tr('projects.description') }}</p></div><button class="button primary" data-open-project>+ {{ tr('project.new') }}</button></section><section class="project-grid">{% for item in projects %}<a class="project-card" href="/projects/{{ item.id }}"><div class="card-heading"><h2>{{ item.name }}</h2><span>{{ item.progress.percent }} %</span></div><div class="progress"><i style="width:{{ item.progress.percent }}%"></i></div><p><strong>{{ item.progress.completed }} / {{ item.progress.required }}</strong> {{ tr('progress.done') }}</p><p class="muted">{{ item.bays|length }} {{ tr('progress.bays') }} · {{ item.progress.excluded }} {{ tr('progress.trusses_excluded') }}</p></a>{% else %}<div class="empty-state"><strong>{{ tr('project.empty') }}</strong><span>{{ tr('project.empty_help') }}</span></div>{% endfor %}</section>{% if archived %}<details class="archive"><summary>{{ tr('project.archived_plural') }} ({{ archived|length }})</summary><div class="project-grid">{% for item in archived %}<a class="project-card archived" href="/projects/{{ item.id }}"><h2>{{ item.name }}</h2><p>{{ tr('project.archived') }} · {{ tr('project.readonly') }}</p></a>{% endfor %}</div></details>{% endif %}<dialog data-project-dialog><form class="dialog-form" data-project-form><div><p class="eyebrow">{{ tr('project.new_hall') }}</p><h2>{{ tr('project.create') }}</h2></div><label>{{ tr('project.name') }}<input name="name" maxlength="160" required placeholder="Hala ABC"></label><div class="two-columns"><label>{{ tr('project.bay_count') }}<input name="bay_count" type="number" min="1" max="100" value="3" required></label><label>{{ tr('project.truss_count') }}<input name="default_truss_count" type="number" min="1" max="500" value="24" required></label></div><label>{{ tr('project.note') }}<textarea name="note" rows="3" maxlength="4000"></textarea></label><div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button><button class="button primary">{{ tr('project.create_submit') }}</button></div></form></dialog>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{ tr('projects') }} · {{ tr('app.name') }}{% endblock %}
+{% block content %}
+<section class="hero"><div><p class="eyebrow">{{ tr('projects.eyebrow') }}</p><h1>{{ tr('projects.active') }}</h1><p>{{ tr('projects.description') }}</p></div><button class="button primary" data-open-project>+ {{ tr('project.new') }}</button></section>
+<section class="project-grid" data-project-list>
+  {% for item in projects %}
+  <a class="project-card" href="/projects/{{ item.id }}" data-project-card-id="{{ item.id }}">
+    <div class="card-heading"><h2 data-project-name>{{ item.name }}</h2><span>{{ item.progress.percent }} %</span></div>
+    <div class="progress"><i style="width:{{ item.progress.percent }}%"></i></div>
+    <p><strong>{{ item.progress.completed }} / {{ item.progress.required }}</strong> {{ tr('progress.done') }}</p>
+    <p class="muted">{{ item.bays|length }} {{ tr('progress.bays') }} · {{ item.progress.excluded }} {{ tr('progress.trusses_excluded') }}</p>
+  </a>
+  {% else %}
+  <div class="empty-state"><strong>{{ tr('project.empty') }}</strong><span>{{ tr('project.empty_help') }}</span></div>
+  {% endfor %}
+</section>
+{% if archived %}
+<details class="archive"><summary>{{ tr('project.archived_plural') }} ({{ archived|length }})</summary>
+  <div class="project-grid">
+  {% for item in archived %}<a class="project-card archived" href="/projects/{{ item.id }}" data-project-card-id="{{ item.id }}"><h2 data-project-name>{{ item.name }}</h2><p>{{ tr('project.archived') }} · {{ tr('project.readonly') }}</p></a>{% endfor %}
+  </div>
+</details>
+{% endif %}
+<dialog data-project-dialog>
+  <form class="dialog-form" data-project-form>
+    <div><p class="eyebrow">{{ tr('project.new_hall') }}</p><h2>{{ tr('project.create') }}</h2></div>
+    <label>{{ tr('project.name') }}<input name="name" maxlength="160" required placeholder="Hala ABC"></label>
+    <div class="two-columns">
+      <label>{{ tr('project.bay_count') }}<input name="bay_count" type="number" min="1" max="100" value="3" required></label>
+      <label>{{ tr('project.truss_count') }}<input name="default_truss_count" type="number" min="1" max="500" value="24" required></label>
+    </div>
+    <label>{{ tr('project.note') }}<textarea name="note" rows="3" maxlength="4000"></textarea></label>
+    <div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button><button class="button primary">{{ tr('project.create_submit') }}</button></div>
+  </form>
+</dialog>
+{% endblock %}

@@ -5,10 +5,10 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from .models import AuditLog, Bay, DilationPair, DilationPairMember, Project, Truss
+from .models import AuditLog, Bay, DilationPair, DilationPairMember, Project, ProjectDeletionLog, Truss
 
 
 TYPE_LABELS = {"normal": "Běžný", "gable": "Štítový", "dilation": "Dilatační"}
@@ -160,6 +160,51 @@ def rename_project(db: Session, project: Project, *, name: str, technician: str)
     )
     db.commit()
     return project
+
+
+def permanently_delete_project(
+    db: Session,
+    project: Project,
+    *,
+    confirmation_name: str,
+    technician: str,
+) -> dict:
+    """Atomically remove one project graph and retain an FK-free tombstone."""
+    if confirmation_name.strip() != project.name:
+        raise HTTPException(422, "Potvrzovací název zakázky nesouhlasí.")
+    technician = clean_text(technician, "Jméno technika")
+    project_id, project_name = project.id, project.name
+    bay_ids = list(db.scalars(select(Bay.id).where(Bay.project_id == project_id)))
+    truss_ids = list(db.scalars(select(Truss.id).where(Truss.bay_id.in_(bay_ids)))) if bay_ids else []
+    pair_ids = list(db.scalars(select(DilationPair.id).where(DilationPair.bay_id.in_(bay_ids)))) if bay_ids else []
+    tombstone = ProjectDeletionLog(
+        project_id=project_id,
+        project_name=project_name,
+        technician_name=technician,
+        action="project.deleted",
+    )
+    try:
+        db.add(tombstone)
+        db.flush()
+        db.execute(delete(AuditLog).where(AuditLog.project_id == project_id))
+        if pair_ids:
+            db.execute(delete(DilationPairMember).where(DilationPairMember.dilation_pair_id.in_(pair_ids)))
+            db.execute(delete(DilationPair).where(DilationPair.id.in_(pair_ids)))
+        if truss_ids:
+            db.execute(delete(DilationPairMember).where(DilationPairMember.truss_id.in_(truss_ids)))
+            db.execute(delete(Truss).where(Truss.id.in_(truss_ids)))
+        if bay_ids:
+            db.execute(delete(Bay).where(Bay.id.in_(bay_ids)))
+        db.execute(delete(Project).where(Project.id == project_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {
+        "id": project_id,
+        "name": project_name,
+        "deletion_log_id": tombstone.id,
+    }
 
 
 def progress_for_trusses(trusses: Iterable[Truss]) -> dict:

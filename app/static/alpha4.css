@@ -15,9 +15,21 @@
 .login-card form{display:flex;flex-direction:column;gap:15px;margin-top:25px}
 .login-card form label{display:flex;flex-direction:column;gap:7px;font-size:.84rem;font-weight:800;color:#41504b}
 .login-card form .button{margin-top:2px}
+.login-version{margin:22px 0 0;text-align:center;color:var(--muted);font-size:.76rem;font-weight:700}
 .plan-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px}
 .plan-toolbar p{margin:0;color:var(--muted)}
 .plan-viewport{overflow:auto;min-height:340px;padding:18px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:var(--shadow)}
 .plan-viewport img{display:block;max-width:none;width:auto;height:auto}
+.project-title-row{display:flex;align-items:center;gap:12px}
+.project-title-row h1{margin-right:0}
+.icon-button{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border:1px solid #afc0b9;border-radius:12px;background:#fff;color:var(--green);font-size:1.35rem;font-weight:900;cursor:pointer;box-shadow:0 4px 14px rgba(20,42,36,.08)}
+.icon-button:hover,.icon-button:focus-visible{border-color:var(--green-2);background:#f3f8f5;outline:3px solid rgba(31,105,88,.14)}
+.project-actions,.bay-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.danger-text{color:var(--red)!important}
+.delete-project-name{margin:12px 0!important;padding:12px 14px;border-radius:10px;background:#f5f2ef;color:var(--ink)!important;font:600 1.25rem Georgia,"Times New Roman",serif;overflow-wrap:anywhere}
+.destructive-dialog .notice{margin:12px 0 0}
+.destructive-dialog [data-confirm-project-delete]:disabled{filter:grayscale(.35)}
 @media(max-width:900px){.topbar-actions{gap:7px}.logout-button{display:none}.plan-toolbar{align-items:flex-start;flex-direction:column}.project-tabs{overflow-x:auto;width:100%}}
-@media(max-width:560px){.topbar .technician-pill{max-width:120px;font-size:.75rem}.login-language{display:flex}.login-card{padding:25px}.project-tabs a{flex:1;text-align:center}.plan-viewport{margin-left:-12px;margin-right:-12px;border-radius:0;border-left:0;border-right:0}}
+@media(max-width:760px){.project-actions,.bay-actions{width:100%;justify-content:stretch}.project-actions .button,.bay-actions .button{flex:1}.project-title-row{align-items:center}.icon-button{flex-basis:46px;width:46px;height:46px}}
+@media(max-width:560px){.topbar .technician-pill{max-width:120px;font-size:.75rem}.login-language{display:flex}.login-card{padding:25px}.project-tabs a{flex:1;text-align:center}.plan-viewport{margin-left:-12px;margin-right:-12px;border-radius:0;border-left:0;border-right:0}.project-title-row{width:100%}.project-title-row h1{min-width:0;overflow-wrap:anywhere}.project-actions,.bay-actions{flex-direction:column}.project-actions .button,.bay-actions .button{width:100%}}
+

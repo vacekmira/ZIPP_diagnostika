@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -76,6 +76,11 @@ def health():
         return {"status": "ok", "database": "ok", "version": __version__}
     except Exception:
         raise HTTPException(503, {"status": "error", "database": "unavailable", "version": __version__})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/login", response_class=HTMLResponse)

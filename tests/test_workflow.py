@@ -20,7 +20,7 @@ def test_main_html_pages_render_without_external_dependencies(client, project):
     truss_id = project["bays"][0]["trusses"][0]["id"]
     assert client.get(f"/trusses/{truss_id}").status_code == 200
     assert client.get("/static/app.css").status_code == 200
-    assert client.get("/static/alpha2.css").status_code == 200
+    assert client.get("/static/alpha4.css").status_code == 200
     assert "https://" not in client.get("/static/app.css").text
 
 

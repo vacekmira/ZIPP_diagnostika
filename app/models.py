@@ -122,6 +122,19 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class ProjectDeletionLog(Base):
+    """Minimal FK-free tombstone retained after a project is deleted."""
+
+    __tablename__ = "project_deletion_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(Integer)
+    project_name: Mapped[str] = mapped_column(String(160))
+    technician_name: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(80), default="project.deleted")
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AppSettings(Base):
     __tablename__ = "app_settings"
     __table_args__ = (CheckConstraint("id = 1", name="ck_app_settings_singleton"),)

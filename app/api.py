@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import re
 import unicodedata
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from .domain import (
     create_project,
     default_truss_label,
     exclude_truss,
+    permanently_delete_project,
     project_dict,
     rename_project,
     remove_pair,
@@ -50,6 +52,7 @@ from .schemas import (
     ExcludeSet,
     LabelSet,
     ProjectCreate,
+    ProjectDelete,
     ProjectNameUpdate,
     TypeSet,
 )
@@ -144,6 +147,24 @@ async def update_project_name(project_id: int, payload: ProjectNameUpdate, db: S
     return event["project"]
 
 
+@router.delete("/projects/{project_id}")
+async def delete_project(project_id: int, payload: ProjectDelete, db: Session = Depends(get_db)):
+    deleted = permanently_delete_project(
+        db,
+        require_project(db, project_id),
+        confirmation_name=payload.confirmation_name,
+        technician=payload.technician_name,
+    )
+    event = {
+        "type": "project.deleted",
+        "project_id": deleted["id"],
+        "project": {"id": deleted["id"], "name": deleted["name"]},
+    }
+    await manager.broadcast(deleted["id"], event)
+    await manager.broadcast(0, event)
+    return {**deleted, "deleted": True}
+
+
 @router.get("/projects/{project_id}/plan.svg")
 def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = None, db: Session = Depends(get_db)):
     project = project_dict(load_project(db, project_id))
@@ -193,12 +214,17 @@ def get_bay(bay_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/bays/{bay_id}/report.pdf")
-def bay_report_pdf(bay_id: int, lang: str = "cs", db: Session = Depends(get_db)):
+def bay_report_pdf(
+    bay_id: int,
+    lang: str = "cs",
+    font_size: Literal["small", "normal", "larger", "large"] = "normal",
+    db: Session = Depends(get_db),
+):
     bay = load_bay(db, bay_id)
     project = project_dict(load_project(db, bay.project_id))
     bay_data = next(item for item in project["bays"] if item["id"] == bay_id)
     created_at = datetime.now().astimezone()
-    pdf = render_bay_report_pdf(project, bay_data, normalize_language(lang), created_at)
+    pdf = render_bay_report_pdf(project, bay_data, normalize_language(lang), created_at, font_size)
     filename = safe_export_filename(project["name"], bay_data["name"], created_at.strftime("%Y-%m-%d"))
     return Response(pdf, media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
@@ -241,6 +267,9 @@ async def resize_bay(bay_id: int, payload: BayResize, db: Session = Depends(get_
         audit(db, project_id=project.id, bay_id=bay.id, technician=payload.technician_name,
               action="bay.resized", field="truss_count", old=current, new=payload.truss_count)
         db.commit()
+        # The relationship was loaded before new rows were inserted.  Expire it
+        # so the response contains the just-created trusses as well.
+        db.expire(bay, ["trusses"])
     else:
         affected = [t for t in active if t.position > payload.truss_count]
         impacted = [t for t in affected if t.left_done or t.right_done or t.excluded or t.pair_membership]

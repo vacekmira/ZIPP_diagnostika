@@ -1,1 +1,74 @@
-{% extends "base.html" %}{% block title %}{{ project.name }} · {{ tr('app.name') }}{% endblock %}{% block content %}<nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><span>{{ project.name }}</span></nav><nav class="project-tabs"><a class="active" href="/projects/{{ project.id }}">{{ tr('tabs.overview') }}</a><a href="/projects/{{ project.id }}/plan">{{ tr('tabs.plan') }}</a></nav><section class="hero compact"><div><p class="eyebrow">{{ tr('project.archived') if project.archived else tr('project.active') }}</p><h1>{{ project.name }}</h1>{% if project.note %}<p>{{ project.note }}</p>{% endif %}</div>{% if project.archived %}<button class="button secondary" data-project-state="reactivate" data-project="{{ project.id }}">{{ tr('project.reactivate') }}</button>{% else %}<button class="button danger-quiet" data-project-state="archive" data-project="{{ project.id }}">{{ tr('project.archive') }}</button>{% endif %}</section><section class="summary-card"><div><strong>{{ project.progress.percent }} %</strong><span>{{ tr('progress.total') }}</span></div><div class="progress"><i style="width:{{ project.progress.percent }}%"></i></div><p>{{ project.progress.completed }} / {{ project.progress.required }} {{ tr('progress.done') }} · {{ project.progress.remaining }} {{ tr('progress.remaining') }} · {{ project.progress.excluded }} {{ tr('progress.excluded') }}</p></section><section><div class="section-heading"><h2>{{ tr('bays') }}</h2><span>{{ project.bays|length }} {{ tr('bay.total') }}</span></div><div class="bay-grid">{% for bay in project.bays %}<a class="bay-card" href="/bays/{{ bay.id }}"><div><span class="bay-number">{{ "%02d"|format(bay.position) }}</span><h3>{{ bay.name }}</h3></div><strong>{{ bay.progress.percent }} %</strong><p>{{ bay.progress.completed }} / {{ bay.progress.required }} {{ tr('progress.done') }} · {{ bay.progress.excluded }} {{ tr('progress.excluded') }}</p><div class="progress"><i style="width:{{ bay.progress.percent }}%"></i></div></a>{% endfor %}</div></section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · {{ tr('app.name') }}{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><span data-project-name>{{ project.name }}</span></nav>
+<nav class="project-tabs"><a class="active" href="/projects/{{ project.id }}">{{ tr('tabs.overview') }}</a><a href="/projects/{{ project.id }}/plan">{{ tr('tabs.plan') }}</a></nav>
+<section class="hero compact project-hero">
+  <div>
+    <p class="eyebrow">{{ tr('project.archived') if project.archived else tr('project.active') }}</p>
+    <div class="project-title-row">
+      <h1 data-project-name>{{ project.name }}</h1>
+      {% if not project.archived %}
+      <button type="button" class="icon-button" data-open-project-rename title="{{ tr('project.edit_name') }}" aria-label="{{ tr('project.edit_name') }}">✎</button>
+      {% endif %}
+    </div>
+    {% if project.note %}<p>{{ project.note }}</p>{% endif %}
+  </div>
+  <div class="project-actions" aria-label="{{ tr('project.actions') }}">
+    {% if project.archived %}
+    <button class="button secondary" data-project-state="reactivate" data-project="{{ project.id }}">{{ tr('project.reactivate') }}</button>
+    {% else %}
+    <button class="button secondary" data-project-state="archive" data-project="{{ project.id }}" title="{{ tr('project.archive') }}">▣ {{ tr('project.archive') }}</button>
+    {% endif %}
+    <button type="button" class="button danger-quiet" data-open-project-delete title="{{ tr('project.delete') }}">⌫ {{ tr('project.delete') }}</button>
+  </div>
+</section>
+<section class="summary-card">
+  <div><strong>{{ project.progress.percent }} %</strong><span>{{ tr('progress.total') }}</span></div>
+  <div class="progress"><i style="width:{{ project.progress.percent }}%"></i></div>
+  <p>{{ project.progress.completed }} / {{ project.progress.required }} {{ tr('progress.done') }} · {{ project.progress.remaining }} {{ tr('progress.remaining') }} · {{ project.progress.excluded }} {{ tr('progress.excluded') }}</p>
+</section>
+<section>
+  <div class="section-heading"><h2>{{ tr('bays') }}</h2><span>{{ project.bays|length }} {{ tr('bay.total') }}</span></div>
+  <div class="bay-grid">
+    {% for bay in project.bays %}
+    <a class="bay-card" href="/bays/{{ bay.id }}">
+      <div><span class="bay-number">{{ "%02d"|format(bay.position) }}</span><h3>{{ bay.name }}</h3></div>
+      <strong>{{ bay.progress.percent }} %</strong>
+      <p>{{ bay.progress.completed }} / {{ bay.progress.required }} {{ tr('progress.done') }} · {{ bay.progress.excluded }} {{ tr('progress.excluded') }}</p>
+      <div class="progress"><i style="width:{{ bay.progress.percent }}%"></i></div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{% if not project.archived %}
+<dialog data-project-rename-dialog>
+  <form class="dialog-form" data-project-name-form data-project-id="{{ project.id }}">
+    <div><p class="eyebrow">{{ tr('project.edit_name') }}</p><h2>{{ tr('project.edit_name_title') }}</h2></div>
+    <label>{{ tr('project.name') }}<input name="name" value="{{ project.name }}" maxlength="160" required data-project-name-input></label>
+    <div class="dialog-actions">
+      <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
+      <button class="button primary">{{ tr('save') }}</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<dialog data-project-delete-dialog>
+  <form class="dialog-form destructive-dialog" data-project-delete-form data-project-id="{{ project.id }}" data-project-name="{{ project.name }}">
+    <div>
+      <p class="eyebrow danger-text">{{ tr('project.delete') }}</p>
+      <h2>{{ tr('project.delete_question') }}</h2>
+      <p>{{ tr('project.delete_intro') }}</p>
+      <p class="delete-project-name" data-delete-project-name>{{ project.name }}</p>
+      <p class="notice danger">{{ tr('project.delete_warning') }} {{ tr('project.delete_irreversible') }}</p>
+    </div>
+    <label>{{ tr('project.delete_confirm_name') }}<input name="confirmation_name" maxlength="160" autocomplete="off" required></label>
+    <div class="dialog-actions">
+      <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
+      <button class="button danger" data-confirm-project-delete disabled>{{ tr('project.delete_permanently') }}</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
