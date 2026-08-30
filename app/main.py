@@ -187,25 +187,16 @@ def truss_page(request: Request, truss_id: int, db=Depends(get_db), _auth=Depend
     ))
 
 
-@app.websocket("/ws/projects/{project_id}")
-async def project_websocket(websocket: WebSocket, project_id: int):
+async def _run_realtime_websocket(websocket: WebSocket, channel: int, connected_message: dict):
     factory = getattr(websocket.app.state, "session_factory", SessionLocal)
-    with factory() as db:
-        session = websocket.scope.get("session", {})
-        if not is_authenticated(session, db):
-            logger.warning("WebSocket authentication rejected project=%s", project_id)
-            await websocket.close(code=4401, reason="authentication_required")
-            return
-        if db.get(Project, project_id) is None:
-            await websocket.close(code=4404, reason="project_not_found")
-            return
     connection = None
     close_code = None
     close_reason = ""
     try:
-        connection = await manager.connect(project_id, websocket)
-        await manager.send_json(connection, {"type": "connected", "project_id": project_id,
-                                             "connection_id": connection.id})
+        connection = await manager.connect(channel, websocket)
+        await manager.send_json(connection, {
+            "type": "connected", "connection_id": connection.id, **connected_message,
+        })
         while True:
             try:
                 message = await asyncio.wait_for(websocket.receive_text(), timeout=30)
@@ -223,8 +214,34 @@ async def project_websocket(websocket: WebSocket, project_id: int):
         close_reason = getattr(exc, "reason", "") or "client_disconnect"
     except Exception as exc:
         close_reason = type(exc).__name__
-        logger.exception("Unexpected WebSocket error project=%s connection=%s", project_id,
+        logger.exception("Unexpected WebSocket error channel=%s connection=%s", channel,
                          connection.id if connection else "unaccepted")
     finally:
         if connection:
-            manager.disconnect(project_id, connection.id, code=close_code, reason=close_reason)
+            manager.disconnect(channel, connection.id, code=close_code, reason=close_reason)
+
+
+@app.websocket("/ws/projects")
+async def project_list_websocket(websocket: WebSocket):
+    factory = getattr(websocket.app.state, "session_factory", SessionLocal)
+    with factory() as db:
+        if not is_authenticated(websocket.scope.get("session", {}), db):
+            logger.warning("WebSocket authentication rejected channel=project-list")
+            await websocket.close(code=4401, reason="authentication_required")
+            return
+    await _run_realtime_websocket(websocket, 0, {"channel": "project-list"})
+
+
+@app.websocket("/ws/projects/{project_id}")
+async def project_websocket(websocket: WebSocket, project_id: int):
+    factory = getattr(websocket.app.state, "session_factory", SessionLocal)
+    with factory() as db:
+        session = websocket.scope.get("session", {})
+        if not is_authenticated(session, db):
+            logger.warning("WebSocket authentication rejected project=%s", project_id)
+            await websocket.close(code=4401, reason="authentication_required")
+            return
+        if db.get(Project, project_id) is None:
+            await websocket.close(code=4404, reason="project_not_found")
+            return
+    await _run_realtime_websocket(websocket, project_id, {"project_id": project_id})

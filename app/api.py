@@ -1,25 +1,29 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
+import unicodedata
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from . import __version__
+from .bay_report import render_bay_report_pdf
 from .database import get_db
 from .auth import require_api_auth
 from .domain import (
     audit,
     bay_dict,
-    bay_code,
     bump,
     check_version,
     clean_text,
     create_pair,
     create_project,
+    default_truss_label,
     exclude_truss,
     project_dict,
+    rename_project,
     remove_pair,
     require_bay,
     require_project,
@@ -46,11 +50,19 @@ from .schemas import (
     ExcludeSet,
     LabelSet,
     ProjectCreate,
+    ProjectNameUpdate,
     TypeSet,
 )
 
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_api_auth)])
+
+
+def safe_export_filename(*parts: str, suffix: str = ".pdf") -> str:
+    normalized = "_".join(parts)
+    normalized = unicodedata.normalize("NFKD", normalized).encode("ascii", "ignore").decode("ascii")
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "_", normalized).strip("._-")
+    return f"{(normalized or 'zipp-export')[:180]}{suffix}"
 
 
 def load_project(db: Session, project_id: int) -> Project:
@@ -111,6 +123,27 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     return project_dict(load_project(db, project_id))
 
 
+@router.patch("/projects/{project_id}/name")
+async def update_project_name(project_id: int, payload: ProjectNameUpdate, db: Session = Depends(get_db)):
+    project = rename_project(
+        db,
+        require_project(db, project_id, writable=True),
+        name=payload.name,
+        technician=payload.technician_name,
+    )
+    event = {
+        "type": "project.renamed",
+        "project_id": project.id,
+        "project_revision": project.revision,
+        "project": {"id": project.id, "name": project.name, "revision": project.revision},
+    }
+    await manager.broadcast(project.id, event)
+    # Channel 0 is the existing manager's project-list channel. A page uses
+    # either this channel or its project channel, never both in parallel.
+    await manager.broadcast(0, event)
+    return event["project"]
+
+
 @router.get("/projects/{project_id}/plan.svg")
 def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = None, db: Session = Depends(get_db)):
     project = project_dict(load_project(db, project_id))
@@ -159,6 +192,20 @@ def get_bay(bay_id: int, db: Session = Depends(get_db)):
     return bay_dict(load_bay(db, bay_id))
 
 
+@router.get("/bays/{bay_id}/report.pdf")
+def bay_report_pdf(bay_id: int, lang: str = "cs", db: Session = Depends(get_db)):
+    bay = load_bay(db, bay_id)
+    project = project_dict(load_project(db, bay.project_id))
+    bay_data = next(item for item in project["bays"] if item["id"] == bay_id)
+    created_at = datetime.now().astimezone()
+    pdf = render_bay_report_pdf(project, bay_data, normalize_language(lang), created_at)
+    filename = safe_export_filename(project["name"], bay_data["name"], created_at.strftime("%Y-%m-%d"))
+    return Response(pdf, media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-store",
+    })
+
+
 @router.patch("/bays/{bay_id}")
 async def update_bay(bay_id: int, payload: BayUpdate, db: Session = Depends(get_db)):
     bay = require_bay(db, bay_id, writable=True)
@@ -188,7 +235,7 @@ async def resize_bay(bay_id: int, payload: BayResize, db: Session = Depends(get_
                 by_position[position].retired_at = None
                 by_position[position].version += 1
             else:
-                label = f"{bay_code(bay.position)}{position}" if project.labeling_scheme == "bay_prefix" else str(position)
+                label = default_truss_label(project.labeling_scheme, bay.position, position)
                 db.add(Truss(bay_id=bay.id, position=position, label=label))
         project.revision += 1
         audit(db, project_id=project.id, bay_id=bay.id, technician=payload.technician_name,

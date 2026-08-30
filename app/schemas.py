@@ -16,6 +16,10 @@ class ProjectCreate(BaseModel):
     technician_name: str = Field(min_length=1, max_length=100)
 
 
+class ProjectNameUpdate(ActorOperation):
+    name: str = Field(min_length=1, max_length=160)
+
+
 class BayUpdate(ActorOperation):
     name: str = Field(min_length=1, max_length=160)
 

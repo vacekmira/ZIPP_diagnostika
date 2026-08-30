@@ -26,6 +26,20 @@ def bay_code(position: int) -> str:
     return result
 
 
+def default_truss_label(labeling_scheme: str, bay_position: int, truss_position: int) -> str:
+    """Return a label for a newly inserted truss without touching existing labels.
+
+    ``single_v`` deliberately remains attached to a project if more bays are
+    added later: the original first bay keeps using V labels while subsequent
+    bays use their physical B/C/... prefixes.
+    """
+    if labeling_scheme == "single_v" and bay_position == 1:
+        return f"V{truss_position}"
+    if labeling_scheme in {"single_v", "bay_prefix"}:
+        return f"{bay_code(bay_position)}{truss_position}"
+    return str(truss_position)
+
+
 def clean_text(value: str, label: str) -> str:
     value = value.strip()
     if not value:
@@ -102,8 +116,9 @@ def audit(
 
 
 def create_project(db: Session, *, name: str, note: str | None, bay_count: int, truss_count: int, technician: str) -> Project:
+    labeling_scheme = "single_v" if bay_count == 1 else "bay_prefix"
     project = Project(name=clean_text(name, "Název zakázky"), note=(note or "").strip() or None,
-                      labeling_scheme="bay_prefix")
+                      labeling_scheme=labeling_scheme)
     db.add(project)
     db.flush()
     for bay_position in range(1, bay_count + 1):
@@ -112,11 +127,38 @@ def create_project(db: Session, *, name: str, note: str | None, bay_count: int, 
         db.add(bay)
         db.flush()
         db.add_all(
-            [Truss(bay_id=bay.id, position=position, label=f"{code}{position}") for position in range(1, truss_count + 1)]
+            [
+                Truss(
+                    bay_id=bay.id,
+                    position=position,
+                    label=default_truss_label(labeling_scheme, bay_position, position),
+                )
+                for position in range(1, truss_count + 1)
+            ]
         )
     audit(db, project_id=project.id, technician=technician, action="project.created", new={"name": project.name})
     db.commit()
     db.refresh(project)
+    return project
+
+
+def rename_project(db: Session, project: Project, *, name: str, technician: str) -> Project:
+    name = clean_text(name, "Název zakázky")
+    if project.name == name:
+        return project
+    old = project.name
+    project.name = name
+    project.revision += 1
+    audit(
+        db,
+        project_id=project.id,
+        technician=technician,
+        action="project.name.changed",
+        field="name",
+        old=old,
+        new=name,
+    )
+    db.commit()
     return project
 
 

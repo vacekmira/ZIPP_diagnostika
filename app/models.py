@@ -14,7 +14,12 @@ def utcnow() -> datetime:
 
 class Project(Base):
     __tablename__ = "projects"
-    __table_args__ = (CheckConstraint("labeling_scheme IN ('legacy','bay_prefix')", name="ck_project_labeling_scheme"),)
+    __table_args__ = (
+        CheckConstraint(
+            "labeling_scheme IN ('legacy','bay_prefix','single_v')",
+            name="ck_project_labeling_scheme",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
