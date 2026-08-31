@@ -1,6 +1,6 @@
 [project]
 name = "zipp-diagnostics"
-version = "0.5.0a5"
+version = "0.6.0a6"
 description = "Terénní evidence diagnostiky ZIPP vazníků"
 requires-python = ">=3.10"
 dependencies = [

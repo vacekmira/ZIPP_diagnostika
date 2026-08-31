@@ -13,7 +13,7 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 
 from . import APP_VERSION
 from .i18n import translator
-from .plan import register_pdf_fonts, svg_drawing
+from .plan import build_plan_geometry, register_pdf_fonts, svg_drawing
 
 
 @dataclass(frozen=True)
@@ -23,21 +23,32 @@ class FontProfile:
     heading: float
     subheading: float
     table_header: float
-    diagram_scale: float
+    diagram_text: float
     cell_padding: float
 
 
 FONT_PROFILES = {
-    "small": FontProfile(9.5, 8.5, 21, 13, 9, 1.0, 5),
-    "normal": FontProfile(11, 9.5, 24, 15, 10.5, 1.16, 6),
-    "larger": FontProfile(13, 11, 27, 17, 12, 1.30, 7),
-    "large": FontProfile(15, 12.5, 30, 19, 14, 1.45, 8),
+    "7": FontProfile(7, 7, 18, 12, 7, 7, 4),
+    "9": FontProfile(9, 8, 21, 13, 9, 9, 5),
+    "10": FontProfile(10, 9, 23, 14, 10, 10, 6),
+    "12": FontProfile(12, 10.5, 26, 16, 12, 12, 7),
+    "14": FontProfile(14, 12, 29, 18, 14, 14, 8),
+}
+
+FONT_PROFILE_ALIASES = {
+    "auto": "10",
+    # Backward-compatible API values from Alpha 4/5.
+    "small": "7",
+    "normal": "10",
+    "larger": "12",
+    "large": "14",
 }
 
 
 def get_font_profile(name: str) -> FontProfile:
+    resolved = FONT_PROFILE_ALIASES.get(name, name)
     try:
-        return FONT_PROFILES[name]
+        return FONT_PROFILES[resolved]
     except KeyError as exc:
         raise ValueError(f"Unknown PDF font profile: {name}") from exc
 
@@ -81,7 +92,7 @@ def render_bay_report_pdf(
     bay: dict,
     language: str = "cs",
     created_at: datetime | None = None,
-    font_profile: str = "normal",
+    font_profile: str = "auto",
 ) -> bytes:
     """Create a read-only localized report from current serialized DB state."""
     register_pdf_fonts()
@@ -165,15 +176,23 @@ def render_bay_report_pdf(
         _paragraph(tr("report.diagram"), subheading),
     ]
 
-    drawing = svg_drawing(project, language, {bay["id"]}, profile.diagram_scale)
     available_width = page_size[0] - document.leftMargin - document.rightMargin
     max_height = 76 * mm
-    scale = min(available_width / drawing.width, max_height / drawing.height, 1)
+    geometry = build_plan_geometry(project, {bay["id"]})
+    scale = min(available_width / geometry.width, max_height / geometry.height, 1)
+    # svglib scales geometry and text together. Compensate before conversion so
+    # the label/L-P/legend base size after fitting is the requested physical pt.
+    drawing = svg_drawing(
+        project,
+        language,
+        {bay["id"]},
+        base_font_size=profile.diagram_text / scale,
+    )
     drawing.scale(scale, scale)
     drawing.width *= scale
     drawing.height *= scale
     story.append(drawing)
-    if font_profile == "large":
+    if profile.body >= 14:
         # The largest profile deliberately starts the table on a fresh page;
         # otherwise its heading can be orphaned below the diagram.
         story.append(PageBreak())
@@ -188,7 +207,7 @@ def render_bay_report_pdf(
         rows.append([_paragraph(value, body) for value in values])
 
     column_widths = [31, 34, 30, 30, 49, 45, 135]
-    if profile.body >= FONT_PROFILES["larger"].body:
+    if profile.body >= FONT_PROFILES["12"].body:
         # Give the L/P columns enough room for full Czech and Slovak status
         # words at the two accessibility-oriented sizes.
         column_widths = [31, 36, 42, 42, 45, 45, 113]

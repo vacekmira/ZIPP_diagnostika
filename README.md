@@ -1,8 +1,8 @@
-# ZIPP Diagnostika - Alpha 5
+# ZIPP Diagnostika - Alpha 6
 
 ZIPP Diagnostika je lokální webová aplikace pro evidenci diagnostiky betonových dodatečně předpínaných ZIPP vazníků. Funguje bez internetového připojení na Windows 11 i Raspberry Pi; pro vzdálený provoz lze použít vlastní doménu a Cloudflare Tunnel.
 
-Aktuální vydání: **Alpha 5**
+Aktuální vydání: **Alpha 6**
 
 ## Hlavní funkce
 
@@ -17,8 +17,8 @@ Aktuální vydání: **Alpha 5**
 - realtime synchronizace a automatický reconnect,
 - souvislý půdorys vícelodní haly se společnými hranicemi,
 - PDF celé zakázky a lokalizovaný PDF report jednotlivé lodě,
-- volba velikosti písma reportu lodě,
-- jednostránkový export celé zakázky na A4/A3/A2/A1/A0 s volbou Auto nebo 7/9/10/12/14 pt,
+- fyzická volba Auto nebo 7/9/10/12/14 pt pro všechny texty reportu lodě včetně schématu,
+- jednostránkový export celé zakázky na A4/A3/A2/A1/A0, Landscape/Portrait a Auto nebo 7/9/10/12/14 pt,
 - vložený otevřený Unicode font DejaVu Sans pro spolehlivou CZ/SK diakritiku bez internetového připojení,
 - přejmenování, archivace a silně potvrzené trvalé smazání zakázky,
 - ověřené SQLite zálohy a bezpečný update.
@@ -69,7 +69,7 @@ Samostatné skripty jsou v `scripts/raspberry/`:
 - `backup_raspberry_docker.sh`,
 - `change_password_raspberry.sh`.
 
-Compose používá image `zipp-diagnostics:alpha5`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
+Compose používá image `zipp-diagnostics:alpha6`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
 
 ## Cloudflare Tunnel
 
@@ -95,7 +95,7 @@ Windows i Raspberry Pi update vždy:
 6. spustí health check,
 7. ponechá databázi i backup při selhání.
 
-Alpha 5 databázovou migraci nepotřebuje. Historické migrace Alpha 4 přidávají:
+Alpha 6 databázovou migraci nepotřebuje. Historické migrace Alpha 4 přidávají:
 
 - Alpha 3 metadata `single_v` bez změny existujících labelů,
 - FK-free `project_deletion_logs` pro minimální stopu trvalého smazání.
@@ -114,13 +114,13 @@ Archivace je vratná a data zachová. Trvalé smazání je samostatná operace:
 
 ## PDF report lodě
 
-Před exportem lze vybrat Menší / Normální / Větší / Velké písmo. Normální je výchozí čitelnější profil Alpha 4 a poslední volba se uchovává pouze v prohlížeči.
+Před exportem lze vybrat Auto / 7 / 9 / 10 / 12 / 14 pt. Volba mění texty reportu i fyzickou velikost labelů, L/P, názvů, stavů a legendy uvnitř schématu. Poslední volba se uchovává pouze v prohlížeči.
 
 Report obsahuje aktuální název zakázky a lodě, čas, souhrn, společně renderované schéma a tabulku skutečných stavů L/P. Vyřazení nikdy nepředstírá dokončení neprovedené strany.
 
 ## PDF celé zakázky
 
-Před stažením se otevře dialog s formátem A4 až A0 a velikostí písma Auto / 7 / 9 / 10 / 12 / 14 pt. Výchozí volba je A3 na šířku a Auto. Poslední volba se ukládá jen v prohlížeči.
+Před stažením se otevře dialog s formátem A4 až A0, orientací Landscape / Portrait a velikostí písma Auto / 7 / 9 / 10 / 12 / 14 pt. Výchozí volba je A3 Landscape a Auto. Poslední volba se ukládá jen v prohlížeči.
 
 Export má vždy právě jednu stranu. Geometrie se přizpůsobuje prostoru odděleně od fyzické velikosti textu. Pokud výslovně zvolená kombinace bezpečně nevyjde, server vrátí srozumitelné odmítnutí a doporučí větší papír nebo menší písmo; nikdy nevytvoří druhou stranu ani potichu nezmenší explicitní písmo.
 
@@ -142,4 +142,4 @@ $env:STABILITY_SECONDS="30"
 
 Produkční desetiminutový víceklientový test ponechte s výchozím `STABILITY_SECONDS=600`.
 
-Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 5**.
+Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 6**.

@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-    image: zipp-diagnostics:alpha5
+    image: zipp-diagnostics:alpha6
     restart: unless-stopped
     environment:
       APP_HOST: 0.0.0.0

@@ -36,10 +36,12 @@
     <div><p class="eyebrow">{{ tr('bay.export') }}</p><h2>{{ tr('report.export_title') }}</h2><p class="muted">{{ tr('report.export_help') }}</p></div>
     <label>{{ tr('report.font_size') }}
       <select name="font_size">
-        <option value="small">{{ tr('report.font.small') }}</option>
-        <option value="normal" selected>{{ tr('report.font.normal') }}</option>
-        <option value="larger">{{ tr('report.font.larger') }}</option>
-        <option value="large">{{ tr('report.font.large') }}</option>
+        <option value="auto" selected>{{ tr('plan.font_auto') }}</option>
+        <option value="7">7 pt</option>
+        <option value="9">9 pt</option>
+        <option value="10">10 pt</option>
+        <option value="12">12 pt</option>
+        <option value="14">14 pt</option>
       </select>
     </label>
     <div class="dialog-actions">

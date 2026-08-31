@@ -21,6 +21,7 @@ from .plan import (
 
 PAPER_SIZES = {"A4": A4, "A3": A3, "A2": A2, "A1": A1, "A0": A0}
 PAPER_ORDER = tuple(PAPER_SIZES)
+ORIENTATIONS = ("landscape", "portrait")
 FONT_SIZES = (7, 9, 10, 12, 14)
 AUTO_FONT_SIZES = (12, 10, 9, 7)
 
@@ -43,6 +44,7 @@ class ExportLayoutError(ValueError):
 @dataclass(frozen=True)
 class PlanPdfLayout:
     paper_size: str
+    orientation: str
     page_width: float
     page_height: float
     font_size: float
@@ -112,10 +114,20 @@ def _truss_text(truss: dict, tr) -> str:
     return f'{truss["label"]}{" - " + annotation if annotation else ""}'
 
 
-def _candidate_layout(project: dict, language: str, paper_size: str, font_size: int) -> tuple[PlanPdfLayout | None, list[str]]:
+def _candidate_layout(
+    project: dict,
+    language: str,
+    paper_size: str,
+    font_size: int,
+    orientation: str,
+) -> tuple[PlanPdfLayout | None, list[str]]:
     register_pdf_fonts()
     tr = translator(language)
-    page_width, page_height = landscape(PAPER_SIZES[paper_size])
+    page_width, page_height = (
+        landscape(PAPER_SIZES[paper_size])
+        if orientation == "landscape"
+        else PAPER_SIZES[paper_size]
+    )
     base = float(font_size)
     margin = max(18.0, base * 1.55)
     title_size = max(16.0, base * 1.65)
@@ -192,6 +204,7 @@ def _candidate_layout(project: dict, language: str, paper_size: str, font_size: 
 
     layout = PlanPdfLayout(
         paper_size=paper_size,
+        orientation=orientation,
         page_width=page_width,
         page_height=page_height,
         font_size=base,
@@ -210,24 +223,38 @@ def _candidate_layout(project: dict, language: str, paper_size: str, font_size: 
     return (None, reasons) if reasons else (layout, [])
 
 
-def _recommendations(project: dict, language: str, paper_size: str, font_size: int) -> list[str]:
+def _recommendations(
+    project: dict,
+    language: str,
+    paper_size: str,
+    font_size: int,
+    orientation: str,
+) -> list[str]:
     language = normalize_language(language)
     recommendations: list[str] = []
     smaller = [size for size in reversed(FONT_SIZES) if size < font_size]
     for size in smaller:
-        layout, _ = _candidate_layout(project, language, paper_size, size)
+        layout, _ = _candidate_layout(project, language, paper_size, size, orientation)
         if layout:
             recommendations.append(
-                f"Použijte {paper_size} / {size} pt." if language == "cs" else f"Použite {paper_size} / {size} pt."
+                f"Použijte {paper_size} / {orientation.title()} / {size} pt."
+                if language == "cs" else f"Použite {paper_size} / {orientation.title()} / {size} pt."
             )
             break
-    start = PAPER_ORDER.index(paper_size)
-    for candidate_paper in PAPER_ORDER[start + 1:]:
-        layout, _ = _candidate_layout(project, language, candidate_paper, font_size)
+    if orientation == "portrait":
+        layout, _ = _candidate_layout(project, language, paper_size, font_size, "landscape")
         if layout:
             recommendations.append(
-                f"Použijte {candidate_paper} / {font_size} pt." if language == "cs"
-                else f"Použite {candidate_paper} / {font_size} pt."
+                f"Použijte {paper_size} / Landscape / {font_size} pt."
+                if language == "cs" else f"Použite {paper_size} / Landscape / {font_size} pt."
+            )
+    start = PAPER_ORDER.index(paper_size)
+    for candidate_paper in PAPER_ORDER[start + 1:]:
+        layout, _ = _candidate_layout(project, language, candidate_paper, font_size, orientation)
+        if layout:
+            recommendations.append(
+                f"Použijte {candidate_paper} / {orientation.title()} / {font_size} pt." if language == "cs"
+                else f"Použite {candidate_paper} / {orientation.title()} / {font_size} pt."
             )
             break
     if not recommendations:
@@ -244,42 +271,50 @@ def resolve_plan_pdf_layout(
     language: str = "cs",
     page_size: str = "A3",
     font_size: str = "auto",
+    orientation: str = "landscape",
 ) -> PlanPdfLayout:
     language = normalize_language(language)
     paper_size = page_size.upper()
     if paper_size not in PAPER_SIZES:
         raise ValueError(f"Unsupported paper size: {page_size}")
+    normalized_orientation = orientation.lower()
+    if normalized_orientation not in ORIENTATIONS:
+        raise ValueError(f"Unsupported orientation: {orientation}")
     requested = str(font_size).lower()
     if requested == "auto":
         collected_reasons: list[str] = []
         for size in AUTO_FONT_SIZES:
-            layout, reasons = _candidate_layout(project, language, paper_size, size)
+            layout, reasons = _candidate_layout(project, language, paper_size, size, normalized_orientation)
             if layout:
                 return PlanPdfLayout(**{**layout.__dict__, "requested_font_size": "auto"})
             collected_reasons = reasons
         message = (
-            f"Zakázku nelze na {paper_size} bezpečně umístit na jednu stranu ani s 7 pt."
+            f"Zakázku nelze na {paper_size} / {normalized_orientation.title()} bezpečně umístit na jednu stranu ani s 7 pt."
             if language == "cs"
-            else f"Zákazku nemožno na {paper_size} bezpečne umiestniť na jednu stranu ani so 7 pt."
+            else f"Zákazku nemožno na {paper_size} / {normalized_orientation.title()} bezpečne umiestniť na jednu stranu ani so 7 pt."
         )
-        raise ExportLayoutError(message, _recommendations(project, language, paper_size, 7), collected_reasons)
+        raise ExportLayoutError(
+            message,
+            _recommendations(project, language, paper_size, 7, normalized_orientation),
+            collected_reasons,
+        )
     try:
         numeric_size = int(requested)
     except ValueError as exc:
         raise ValueError(f"Unsupported font size: {font_size}") from exc
     if numeric_size not in FONT_SIZES:
         raise ValueError(f"Unsupported font size: {font_size}")
-    layout, reasons = _candidate_layout(project, language, paper_size, numeric_size)
+    layout, reasons = _candidate_layout(project, language, paper_size, numeric_size, normalized_orientation)
     if layout:
         return layout
     message = (
-        f"Zvolená kombinace {paper_size} / {numeric_size} pt se nevejde na jednu stranu."
+        f"Zvolená kombinace {paper_size} / {normalized_orientation.title()} / {numeric_size} pt se nevejde na jednu stranu."
         if language == "cs"
-        else f"Zvolená kombinácia {paper_size} / {numeric_size} pt sa nezmestí na jednu stranu."
+        else f"Zvolená kombinácia {paper_size} / {normalized_orientation.title()} / {numeric_size} pt sa nezmestí na jednu stranu."
     )
     raise ExportLayoutError(
         message,
-        _recommendations(project, language, paper_size, numeric_size),
+        _recommendations(project, language, paper_size, numeric_size, normalized_orientation),
         reasons,
     )
 
@@ -377,11 +412,12 @@ def render_full_plan_pdf(
     language: str = "cs",
     page_size: str = "A3",
     font_size: str = "auto",
+    orientation: str = "landscape",
 ) -> bytes:
     language = normalize_language(language)
     tr = translator(language)
     register_pdf_fonts()
-    layout = resolve_plan_pdf_layout(project, language, page_size, font_size)
+    layout = resolve_plan_pdf_layout(project, language, page_size, font_size, orientation)
     geometry = build_plan_geometry(project)
     output = io.BytesIO()
     pdf = canvas.Canvas(

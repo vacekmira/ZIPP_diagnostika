@@ -8,7 +8,7 @@ from app.plan import render_plan_pdf
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "tmp" / "pdfs" / "alpha5-matrix"
+MATRIX = ROOT / "tmp" / "pdfs" / "alpha6-matrix"
 FINAL = ROOT / "output" / "pdf"
 
 
@@ -71,7 +71,7 @@ def reference_project() -> dict:
     return {
         "id": 1,
         "name": "Hala Žďár – zkouška",
-        "note": "Česká a slovenská vizuální matice Alpha 5.",
+        "note": "Česká a slovenská vizuální matice Alpha 6.",
         "archived": False,
         "revision": 5,
         "progress": progress([truss for bay in bays for truss in bay["trusses"]]),
@@ -84,23 +84,21 @@ def main() -> None:
     FINAL.mkdir(parents=True, exist_ok=True)
     project = reference_project()
     cases = (
-        ("full-A4-auto.pdf", "A4", "auto"),
-        ("full-A3-auto.pdf", "A3", "auto"),
-        ("full-A3-12.pdf", "A3", "12"),
-        ("full-A2-12.pdf", "A2", "12"),
-        ("full-A1-14.pdf", "A1", "14"),
+        ("full-A4-landscape-auto.pdf", "A4", "landscape", "auto"),
+        ("full-A3-landscape-10.pdf", "A3", "landscape", "10"),
+        ("full-A2-portrait-14.pdf", "A2", "portrait", "14"),
     )
-    for filename, paper, font in cases:
-        data = render_plan_pdf(project, "cs", page_size=paper, font_size=font)
+    for filename, paper, orientation, font in cases:
+        data = render_plan_pdf(project, "cs", page_size=paper, orientation=orientation, font_size=font)
         (MATRIX / filename).write_bytes(data)
-        if filename == "full-A3-12.pdf":
-            (FINAL / "zipp-alpha5-reference-A3-12.pdf").write_bytes(data)
+        if filename == "full-A2-portrait-14.pdf":
+            (FINAL / "zipp-alpha6-reference-A2-portrait-14.pdf").write_bytes(data)
     created_at = datetime(2026, 8, 31, 10, 30).astimezone()
-    (MATRIX / "bay-A-normal-cs.pdf").write_bytes(
-        render_bay_report_pdf(project, project["bays"][0], "cs", created_at, "normal")
+    (MATRIX / "bay-A-7pt-cs.pdf").write_bytes(
+        render_bay_report_pdf(project, project["bays"][0], "cs", created_at, "7")
     )
-    (MATRIX / "bay-B-large-sk.pdf").write_bytes(
-        render_bay_report_pdf(project, project["bays"][1], "sk", created_at, "large")
+    (MATRIX / "bay-B-14pt-sk.pdf").write_bytes(
+        render_bay_report_pdf(project, project["bays"][1], "sk", created_at, "14")
     )
 
 

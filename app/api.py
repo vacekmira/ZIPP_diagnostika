@@ -178,6 +178,7 @@ def project_plan_pdf(
     project_id: int,
     lang: str = "cs",
     page_size: Literal["A4", "A3", "A2", "A1", "A0"] = "A3",
+    orientation: Literal["landscape", "portrait"] = "landscape",
     font_size: Literal["auto", "7", "9", "10", "12", "14"] = "auto",
     db: Session = Depends(get_db),
 ):
@@ -188,6 +189,7 @@ def project_plan_pdf(
             normalize_language(lang),
             page_size=page_size,
             font_size=font_size,
+            orientation=orientation,
         )
     except ExportLayoutError as exc:
         raise HTTPException(422, exc.as_detail()) from exc
@@ -195,6 +197,7 @@ def project_plan_pdf(
         "Content-Disposition": f'attachment; filename="zipp-plan-project-{project_id}.pdf"',
         "Cache-Control": "no-store",
         "X-Zipp-Page-Size": page_size,
+        "X-Zipp-Orientation": orientation,
         "X-Zipp-Font-Size": font_size,
     })
 
@@ -234,7 +237,10 @@ def get_bay(bay_id: int, db: Session = Depends(get_db)):
 def bay_report_pdf(
     bay_id: int,
     lang: str = "cs",
-    font_size: Literal["small", "normal", "larger", "large"] = "normal",
+    font_size: Literal[
+        "auto", "7", "9", "10", "12", "14",
+        "small", "normal", "larger", "large",
+    ] = "auto",
     db: Session = Depends(get_db),
 ):
     bay = load_bay(db, bay_id)
@@ -246,6 +252,7 @@ def bay_report_pdf(
     return Response(pdf, media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
         "Cache-Control": "no-store",
+        "X-Zipp-Font-Size": font_size,
     })
 
 

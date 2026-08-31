@@ -144,7 +144,14 @@ def _truss_annotation(truss: dict, tr) -> str:
     return ""
 
 
-def _wrapped_svg_text(value: str, x: float, center_y: float, css_class: str, max_chars: int = 17) -> str:
+def _wrapped_svg_text(
+    value: str,
+    x: float,
+    center_y: float,
+    css_class: str,
+    max_chars: int = 17,
+    line_height: float = 17,
+) -> str:
     """Wrap long bay names into the fixed annotation margin without clipping."""
     words: list[str] = []
     for word in value.split():
@@ -164,7 +171,6 @@ def _wrapped_svg_text(value: str, x: float, center_y: float, css_class: str, max
     if current:
         lines.append(current)
     lines = lines or [value]
-    line_height = 17
     first_y = center_y - ((len(lines) - 1) * line_height) / 2 + 5
     spans = "".join(
         f'<tspan x="{x}" y="{first_y + index * line_height}">{escape(line)}</tspan>'
@@ -178,13 +184,16 @@ def render_plan_svg(
     language: str = "cs",
     bay_ids: set[int] | None = None,
     font_scale: float = 1.0,
+    base_font_size: float | None = None,
 ) -> str:
     tr = translator(language)
     geometry = build_plan_geometry(project, bay_ids)
     right = geometry.right
     axis_left = geometry.left - 18
     axis_right = right + 18
-    title_size = 24 * font_scale
+    base_size = float(base_font_size) if base_font_size is not None else 13 * font_scale
+    text_scale = base_size / 13
+    title_size = 24 * text_scale
     title_width = geometry.width - MARGIN_LEFT - 30
     title_length = len(project["name"]) * title_size * 0.58
     title_fit = (
@@ -195,12 +204,12 @@ def render_plan_svg(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{geometry.width}" height="{geometry.height}" '
         f'viewBox="0 0 {geometry.width} {geometry.height}" role="img" aria-labelledby="title desc">',
         '<style>text{font-family:ZippSans,"DejaVu Sans",Arial,sans-serif;fill:#17201e}'
-        f'.small{{font-size:{12 * font_scale:g}px}}.label{{font-size:{13 * font_scale:g}px;font-weight:700}}'
-        f'.bay{{font-size:{16 * font_scale:g}px;font-weight:700}}'
+        f'.small{{font-size:{12 * text_scale:g}px}}.label{{font-size:{base_size:g}px;font-weight:700}}'
+        f'.bay{{font-size:{16 * text_scale:g}px;font-weight:700}}'
         '.muted{fill:#63706c}.axis{stroke:#7d8985;stroke-width:1.4;stroke-dasharray:14 7 2 7}'
-        f'.pair{{stroke:#9a6500;stroke-width:2.2;fill:none}}.legend-text{{font-size:{12 * font_scale:g}px}}'
+        f'.pair{{stroke:#9a6500;stroke-width:2.2;fill:none}}.legend-text{{font-size:{12 * text_scale:g}px}}'
         f'.boundary-circle{{fill:#fff;stroke:#3254c7;stroke-width:1.4}}'
-        f'.boundary-label{{fill:#3254c7;font-size:{13 * font_scale:g}px;font-weight:700}}</style>',
+        f'.boundary-label{{fill:#3254c7;font-size:{base_size:g}px;font-weight:700}}</style>',
         f'<title id="title">{escape(tr("plan.title"))} - {escape(project["name"])}</title>',
         f'<desc id="desc">{escape(tr("plan.description"))}</desc>',
         '<rect width="100%" height="100%" fill="#fff"/>',
@@ -225,7 +234,7 @@ def render_plan_svg(
         parts += [
             f'<g data-bay-id="{bay["id"]}" data-bay-position="{bay["position"]}" '
             f'data-top="{top}" data-bottom="{bottom}">',
-            _wrapped_svg_text(bay["name"], right + 104, center, "bay"),
+            _wrapped_svg_text(bay["name"], right + 104, center, "bay", line_height=17 * text_scale),
             f'<text x="{right + 30}" y="{top + 21}" class="label" style="fill:#3254c7">P</text>',
             f'<text x="{right + 30}" y="{bottom - 9}" class="label" style="fill:#3254c7">L</text>',
         ]
@@ -342,23 +351,41 @@ def svg_drawing(
     language: str = "cs",
     bay_ids: set[int] | None = None,
     font_scale: float = 1.0,
+    base_font_size: float | None = None,
 ):
     register_pdf_fonts()
     # svglib treats a CSS fallback list as an unknown family and silently
     # replaces it with Helvetica.  Feed it the exact registered family so
     # Czech and Slovak glyphs remain embedded in bay-report diagrams.
-    source = render_plan_svg(project, language, bay_ids, font_scale).replace(
+    source = render_plan_svg(project, language, bay_ids, font_scale, base_font_size).replace(
         'font-family:ZippSans,"DejaVu Sans",Arial,sans-serif',
         "font-family:ZippSans",
     )
     drawing = svg2rlg(io.BytesIO(source.encode("utf-8")))
     if drawing is None:
         raise RuntimeError("SVG se nepodařilo převést do PDF.")
+    _force_embedded_unicode_fonts(drawing)
     return drawing
 
 
+def _force_embedded_unicode_fonts(node, seen: set[int] | None = None) -> None:
+    """Prevent svglib from leaving any SVG text on a non-Unicode PDF font."""
+    seen = seen or set()
+    identity = id(node)
+    if identity in seen:
+        return
+    seen.add(identity)
+    if hasattr(node, "fontName"):
+        current = str(getattr(node, "fontName", ""))
+        weight = str(getattr(node, "fontWeight", ""))
+        bold = "bold" in current.casefold() or weight.casefold() in {"bold", "700", "800", "900"}
+        node.fontName = "ZippSansBold" if bold else "ZippSans"
+    for child in getattr(node, "contents", ()) or ():
+        _force_embedded_unicode_fonts(child, seen)
+
+
 def _pdf_projects(project: dict) -> list[dict]:
-    """Compatibility helper: Alpha 5 never splits a full-project export."""
+    """Compatibility helper: Alpha 6 never splits a full-project export."""
     return [project]
 
 
@@ -367,7 +394,14 @@ def render_plan_pdf(
     language: str = "cs",
     page_size: str = "A3",
     font_size: str = "auto",
+    orientation: str = "landscape",
 ) -> bytes:
     from .plan_pdf import render_full_plan_pdf
 
-    return render_full_plan_pdf(project, language, page_size=page_size, font_size=font_size)
+    return render_full_plan_pdf(
+        project,
+        language,
+        page_size=page_size,
+        font_size=font_size,
+        orientation=orientation,
+    )

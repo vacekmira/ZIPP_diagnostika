@@ -11,4 +11,4 @@ systemctl stop zipp-diagnostics
 systemctl start zipp-diagnostics
 sleep 3
 curl --fail http://127.0.0.1:8000/health
-echo "Aktualizace Alpha 5 dokončena. Zálohy: /var/lib/zipp-diagnostics/backups"
+echo "Aktualizace Alpha 6 dokončena. Zálohy: /var/lib/zipp-diagnostics/backups"

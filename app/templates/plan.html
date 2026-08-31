@@ -17,7 +17,7 @@
       <h2>{{ tr('plan.export_title') }}</h2>
       <p class="muted">{{ tr('plan.export_help') }}</p>
     </div>
-    <div class="two-columns">
+    <div class="three-columns">
       <label>{{ tr('plan.page_size') }}
         <select name="page_size">
           <option value="A4">A4</option>
@@ -25,6 +25,12 @@
           <option value="A2">A2</option>
           <option value="A1">A1</option>
           <option value="A0">A0</option>
+        </select>
+      </label>
+      <label>{{ tr('plan.orientation') }}
+        <select name="orientation">
+          <option value="landscape" selected>{{ tr('plan.landscape') }}</option>
+          <option value="portrait">{{ tr('plan.portrait') }}</option>
         </select>
       </label>
       <label>{{ tr('report.font_size') }}
@@ -38,7 +44,7 @@
         </select>
       </label>
     </div>
-    <p class="export-note">{{ tr('plan.landscape_one_page') }}</p>
+    <p class="export-note">{{ tr('plan.one_page') }}</p>
     <p class="export-error" data-plan-export-error role="alert"></p>
     <div class="dialog-actions">
       <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>

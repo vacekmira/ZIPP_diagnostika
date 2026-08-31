@@ -37,14 +37,14 @@ def create_project(client, *, bays=2, trusses=8, name="Hala Alpha 4"):
 
 
 def test_alpha4_features_are_preserved_in_current_release(client):
-    assert APP_VERSION == "Alpha 5"
-    assert client.get("/health").json()["version"] == "Alpha 5"
-    assert "Alpha 5" in client.get("/login").text or "Alpha 5" in client.get("/").text
-    assert "Alpha 5" in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()[0]
-    assert 'version = "0.5.0a5"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "zipp-diagnostics:alpha5" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert APP_VERSION == "Alpha 6"
+    assert client.get("/health").json()["version"] == "Alpha 6"
+    assert "Alpha 6" in client.get("/login").text or "Alpha 6" in client.get("/").text
+    assert "Alpha 6" in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()[0]
+    assert 'version = "0.6.0a6"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "zipp-diagnostics:alpha6" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert not (ROOT / "app/static/alpha2.css").exists()
-    assert (ROOT / "app/static/alpha5.css").is_file()
+    assert (ROOT / "app/static/alpha6.css").is_file()
 
 
 def test_font_profiles_have_larger_default_and_all_pdf_variants_work(client):
@@ -75,8 +75,8 @@ def test_font_profiles_have_larger_default_and_all_pdf_variants_work(client):
         "reason": "crack", "note": "Dlouhá poznámka s diakritikou: příliš žluťoučký kôň.",
         "technician_name": "Tester", "expected_version": trusses[4]["version"],
     }).status_code == 200
-    assert FONT_PROFILES["normal"].body > 9
-    assert FONT_PROFILES["small"].body < FONT_PROFILES["normal"].body < FONT_PROFILES["larger"].body < FONT_PROFILES["large"].body
+    assert FONT_PROFILES["10"].body == 10
+    assert FONT_PROFILES["7"].body < FONT_PROFILES["10"].body < FONT_PROFILES["12"].body < FONT_PROFILES["14"].body
     for profile in FONT_PROFILES:
         response = client.get(f"/api/bays/{bay_id}/report.pdf?font_size={profile}&lang=cs")
         assert response.status_code == 200, response.text
@@ -85,7 +85,7 @@ def test_font_profiles_have_larger_default_and_all_pdf_variants_work(client):
     assert client.get(f"/api/bays/{bay_id}/report.pdf?font_size=large&lang=sk").status_code == 200
     assert client.get(f"/api/bays/{bay_id}/report.pdf?font_size=unknown").status_code == 422
     page = client.get(f"/bays/{bay_id}").text
-    assert "data-bay-export-dialog" in page and 'value="normal" selected' in page
+    assert "data-bay-export-dialog" in page and 'value="auto" selected' in page
     script = client.get("/static/app.js").text
     assert 'zipp.exportFontSize' in script and 'font_size=' in script
 
@@ -121,7 +121,7 @@ def test_explicit_dilation_pair_has_small_internal_gap_only():
     assert plain_distances[5] - plain_distances[4] == TRUSS_SPACING
 
 
-def test_alpha5_full_project_compatibility_helper_never_splits_project():
+def test_current_full_project_compatibility_helper_never_splits_project():
     trusses = [_truss(position) for position in range(1, 21)]
     trusses[17]["pair_id"] = trusses[18]["pair_id"] = 9
     project = {"name": "Stránkování", "bays": [{"id": 1, "position": 1, "name": "Loď A", "trusses": trusses}]}

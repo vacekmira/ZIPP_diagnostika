@@ -1,5 +1,5 @@
 (() => {
-  const scriptVersion = "Alpha 5";
+  const scriptVersion = "Alpha 6";
   if (document.body) document.body.dataset.jsVersion = scriptVersion;
   const storageKey = "zipp.technician";
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -233,8 +233,9 @@
   const exportButton = $("[data-open-bay-export]");
   const exportForm = $("[data-bay-export-form]");
   if (exportButton && exportDialog && exportForm) exportButton.addEventListener("click", () => {
-    const stored = localStorage.getItem(exportStorageKey);
-    exportForm.elements.font_size.value = ["small", "normal", "larger", "large"].includes(stored) ? stored : "normal";
+    const legacyValues = { small: "7", normal: "10", larger: "12", large: "14" };
+    const stored = legacyValues[localStorage.getItem(exportStorageKey)] || localStorage.getItem(exportStorageKey);
+    exportForm.elements.font_size.value = ["auto", "7", "9", "10", "12", "14"].includes(stored) ? stored : "auto";
     exportDialog.showModal();
   });
   if (exportForm) exportForm.addEventListener("submit", async (event) => {
@@ -265,6 +266,7 @@
     let stored = {};
     try { stored = JSON.parse(localStorage.getItem(planExportStorageKey) || "{}"); } catch (_) { /* invalid old preference */ }
     planExportForm.elements.page_size.value = ["A4", "A3", "A2", "A1", "A0"].includes(stored.page_size) ? stored.page_size : "A3";
+    planExportForm.elements.orientation.value = ["landscape", "portrait"].includes(stored.orientation) ? stored.orientation : "landscape";
     planExportForm.elements.font_size.value = ["auto", "7", "9", "10", "12", "14"].includes(stored.font_size) ? stored.font_size : "auto";
     $("[data-plan-export-error]", planExportForm).textContent = "";
     planExportDialog.showModal();
@@ -272,15 +274,16 @@
   if (planExportForm) planExportForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const pageSize = planExportForm.elements.page_size.value;
+    const orientation = planExportForm.elements.orientation.value;
     const fontSize = planExportForm.elements.font_size.value;
     const errorNode = $("[data-plan-export-error]", planExportForm);
     const submit = $("[data-plan-export-submit]", planExportForm);
     errorNode.textContent = "";
-    localStorage.setItem(planExportStorageKey, JSON.stringify({ page_size: pageSize, font_size: fontSize }));
+    localStorage.setItem(planExportStorageKey, JSON.stringify({ page_size: pageSize, orientation, font_size: fontSize }));
     submit.disabled = true;
     try {
       await downloadPdf(
-        `/api/projects/${planExportForm.dataset.projectId}/plan.pdf?lang=${encodeURIComponent(language)}&page_size=${encodeURIComponent(pageSize)}&font_size=${encodeURIComponent(fontSize)}`,
+        `/api/projects/${planExportForm.dataset.projectId}/plan.pdf?lang=${encodeURIComponent(language)}&page_size=${encodeURIComponent(pageSize)}&orientation=${encodeURIComponent(orientation)}&font_size=${encodeURIComponent(fontSize)}`,
         `zipp-plan-project-${planExportForm.dataset.projectId}.pdf`,
       );
       planExportDialog.close();
