@@ -36,15 +36,15 @@ def create_project(client, *, bays=2, trusses=8, name="Hala Alpha 4"):
     return response.json()
 
 
-def test_current_version_is_alpha4_in_ui_health_metadata_and_deployment(client):
-    assert APP_VERSION == "Alpha 4"
-    assert client.get("/health").json()["version"] == "Alpha 4"
-    assert "Alpha 4" in client.get("/login").text or "Alpha 4" in client.get("/").text
-    assert "Alpha 4" in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()[0]
-    assert 'version = "0.4.0a4"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "zipp-diagnostics:alpha4" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+def test_alpha4_features_are_preserved_in_current_release(client):
+    assert APP_VERSION == "Alpha 5"
+    assert client.get("/health").json()["version"] == "Alpha 5"
+    assert "Alpha 5" in client.get("/login").text or "Alpha 5" in client.get("/").text
+    assert "Alpha 5" in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()[0]
+    assert 'version = "0.5.0a5"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "zipp-diagnostics:alpha5" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert not (ROOT / "app/static/alpha2.css").exists()
-    assert (ROOT / "app/static/alpha4.css").is_file()
+    assert (ROOT / "app/static/alpha5.css").is_file()
 
 
 def test_font_profiles_have_larger_default_and_all_pdf_variants_work(client):
@@ -121,13 +121,13 @@ def test_explicit_dilation_pair_has_small_internal_gap_only():
     assert plain_distances[5] - plain_distances[4] == TRUSS_SPACING
 
 
-def test_pdf_pagination_does_not_split_explicit_pair():
+def test_alpha5_full_project_compatibility_helper_never_splits_project():
     trusses = [_truss(position) for position in range(1, 21)]
     trusses[17]["pair_id"] = trusses[18]["pair_id"] = 9
     project = {"name": "Stránkování", "bays": [{"id": 1, "position": 1, "name": "Loď A", "trusses": trusses}]}
     pages = _pdf_projects(project)
-    assert [item["position"] for item in pages[0]["bays"][0]["trusses"]][-1] == 17
-    assert [item["position"] for item in pages[1]["bays"][0]["trusses"]][:2] == [18, 19]
+    assert len(pages) == 1
+    assert [item["position"] for item in pages[0]["bays"][0]["trusses"]] == list(range(1, 21))
 
 
 def test_project_rename_is_visible_audited_and_realtime_on_existing_channels(client, db):

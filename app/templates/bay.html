@@ -22,8 +22,8 @@
     <div class="excluded-state"><strong>✕ {{ tr('state.excluded') }}</strong><span>{{ tr('reason.' ~ truss.exclusion_reason) }}</span>{% if truss.exclusion_note %}<small>{{ truss.exclusion_note }}</small>{% endif %}</div>
     {% else %}
     <div class="side-actions">
-      <button class="side-button {{ 'done' if truss.left_done }}" data-side="left" aria-pressed="{{ 'true' if truss.left_done else 'false' }}" {{ 'disabled' if project.archived }}><span>L</span><strong>{{ '✓ ' ~ tr('state.done') if truss.left_done else '○ ' ~ tr('state.pending') }}</strong></button>
-      <button class="side-button {{ 'done' if truss.right_done }}" data-side="right" aria-pressed="{{ 'true' if truss.right_done else 'false' }}" {{ 'disabled' if project.archived }}><span>P</span><strong>{{ '✓ ' ~ tr('state.done') if truss.right_done else '○ ' ~ tr('state.pending') }}</strong></button>
+      <button type="button" class="side-button {{ 'done' if truss.left_done }}" data-side="left" aria-pressed="{{ 'true' if truss.left_done else 'false' }}" {{ 'disabled' if project.archived }}><span>L</span><strong>{{ '✓ ' ~ tr('state.done') if truss.left_done else '○ ' ~ tr('state.pending') }}</strong></button>
+      <button type="button" class="side-button {{ 'done' if truss.right_done }}" data-side="right" aria-pressed="{{ 'true' if truss.right_done else 'false' }}" {{ 'disabled' if project.archived }}><span>P</span><strong>{{ '✓ ' ~ tr('state.done') if truss.right_done else '○ ' ~ tr('state.pending') }}</strong></button>
     </div>
     {% endif %}
     <a class="detail-link" href="/trusses/{{ truss.id }}" aria-label="{{ tr('detail') }} {{ truss.label }}">›</a>
@@ -44,7 +44,7 @@
     </label>
     <div class="dialog-actions">
       <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
-      <button class="button primary">{{ tr('report.export_pdf') }}</button>
+      <button type="submit" class="button primary" data-bay-export-submit>{{ tr('report.export_pdf') }}</button>
     </div>
   </form>
 </dialog>

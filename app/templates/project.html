@@ -16,9 +16,9 @@
   </div>
   <div class="project-actions" aria-label="{{ tr('project.actions') }}">
     {% if project.archived %}
-    <button class="button secondary" data-project-state="reactivate" data-project="{{ project.id }}">{{ tr('project.reactivate') }}</button>
+    <button type="button" class="button secondary" data-project-state="reactivate" data-project="{{ project.id }}">{{ tr('project.reactivate') }}</button>
     {% else %}
-    <button class="button secondary" data-project-state="archive" data-project="{{ project.id }}" title="{{ tr('project.archive') }}">▣ {{ tr('project.archive') }}</button>
+    <button type="button" class="button secondary" data-project-state="archive" data-project="{{ project.id }}" title="{{ tr('project.archive') }}">▣ {{ tr('project.archive') }}</button>
     {% endif %}
     <button type="button" class="button danger-quiet" data-open-project-delete title="{{ tr('project.delete') }}">⌫ {{ tr('project.delete') }}</button>
   </div>
@@ -49,7 +49,7 @@
     <label>{{ tr('project.name') }}<input name="name" value="{{ project.name }}" maxlength="160" required data-project-name-input></label>
     <div class="dialog-actions">
       <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
-      <button class="button primary">{{ tr('save') }}</button>
+      <button type="submit" class="button primary">{{ tr('save') }}</button>
     </div>
   </form>
 </dialog>
@@ -67,7 +67,7 @@
     <label>{{ tr('project.delete_confirm_name') }}<input name="confirmation_name" maxlength="160" autocomplete="off" required></label>
     <div class="dialog-actions">
       <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
-      <button class="button danger" data-confirm-project-delete disabled>{{ tr('project.delete_permanently') }}</button>
+      <button type="submit" class="button danger" data-confirm-project-delete disabled>{{ tr('project.delete_permanently') }}</button>
     </div>
   </form>
 </dialog>

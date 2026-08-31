@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import io
-from copy import deepcopy
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
+from threading import Lock
 
-from reportlab.lib.pagesizes import A3, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfgen import canvas
+from svglib.fonts import register_font as register_svg_font
 from svglib.svglib import svg2rlg
 
 from . import APP_VERSION
@@ -24,7 +23,9 @@ MARGIN_LEFT = 112
 MARGIN_RIGHT = 245
 HEADER_HEIGHT = 88
 LEGEND_HEIGHT = 150
-PDF_TRUSSES_PER_PAGE = 18
+FONT_DIRECTORY = Path(__file__).resolve().parent / "assets" / "fonts"
+_FONT_REGISTRATION_LOCK = Lock()
+_FONTS_READY = False
 
 
 @dataclass(frozen=True)
@@ -312,28 +313,28 @@ def render_plan_svg(
 
 
 def register_pdf_fonts() -> None:
-    regular_candidates = (
-        Path("C:/Windows/Fonts/arial.ttf"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
-    )
-    bold_candidates = (
-        Path("C:/Windows/Fonts/arialbd.ttf"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
-    )
-    if "ZippSans" not in pdfmetrics.getRegisteredFontNames():
-        font_path = next((path for path in regular_candidates if path.is_file()), None)
-        if font_path is None:
-            raise RuntimeError("Chybí Unicode font pro PDF. Nainstalujte fonts-dejavu-core.")
-        pdfmetrics.registerFont(TTFont("ZippSans", str(font_path)))
-    if "ZippSansBold" not in pdfmetrics.getRegisteredFontNames():
-        bold_path = next((path for path in bold_candidates if path.is_file()), None)
-        if bold_path is None:
-            pdfmetrics.registerFontFamily("ZippSans", normal="ZippSans", bold="ZippSans")
-        else:
+    """Register the application-owned Unicode font for every PDF renderer."""
+    global _FONTS_READY
+    if _FONTS_READY:
+        return
+    regular_path = FONT_DIRECTORY / "DejaVuSans.ttf"
+    bold_path = FONT_DIRECTORY / "DejaVuSans-Bold.ttf"
+    if not regular_path.is_file() or not bold_path.is_file():
+        raise RuntimeError("V aplikaci chybí vložený Unicode font DejaVu Sans.")
+    with _FONT_REGISTRATION_LOCK:
+        if _FONTS_READY:
+            return
+        if "ZippSans" not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont("ZippSans", str(regular_path)))
+        if "ZippSansBold" not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont("ZippSansBold", str(bold_path)))
-            pdfmetrics.registerFontFamily("ZippSans", normal="ZippSans", bold="ZippSansBold")
+        pdfmetrics.registerFontFamily("ZippSans", normal="ZippSans", bold="ZippSansBold")
+        # svglib keeps its own font map in addition to ReportLab's registry.
+        # Without these exact mappings it silently falls back to Helvetica.
+        register_svg_font("ZippSans", str(regular_path), rlgFontName="ZippSans")
+        register_svg_font("ZippSans", str(bold_path), weight="bold", rlgFontName="ZippSansBold")
+        register_svg_font("ZippSans", str(bold_path), weight="700", rlgFontName="ZippSansBold")
+        _FONTS_READY = True
 
 
 def svg_drawing(
@@ -343,67 +344,30 @@ def svg_drawing(
     font_scale: float = 1.0,
 ):
     register_pdf_fonts()
-    drawing = svg2rlg(io.BytesIO(render_plan_svg(project, language, bay_ids, font_scale).encode("utf-8")))
+    # svglib treats a CSS fallback list as an unknown family and silently
+    # replaces it with Helvetica.  Feed it the exact registered family so
+    # Czech and Slovak glyphs remain embedded in bay-report diagrams.
+    source = render_plan_svg(project, language, bay_ids, font_scale).replace(
+        'font-family:ZippSans,"DejaVu Sans",Arial,sans-serif',
+        "font-family:ZippSans",
+    )
+    drawing = svg2rlg(io.BytesIO(source.encode("utf-8")))
     if drawing is None:
         raise RuntimeError("SVG se nepodařilo převést do PDF.")
     return drawing
 
 
 def _pdf_projects(project: dict) -> list[dict]:
-    positions = [truss["position"] for bay in project["bays"] for truss in bay["trusses"]]
-    if not positions or max(positions) - min(positions) + 1 <= PDF_TRUSSES_PER_PAGE:
-        return [project]
-    protected_breaks: set[int] = set()
-    for bay in project["bays"]:
-        members: dict[int, list[dict]] = {}
-        for truss in bay["trusses"]:
-            if truss.get("pair_id"):
-                members.setdefault(truss["pair_id"], []).append(truss)
-        for pair in members.values():
-            pair_positions = sorted(item["position"] for item in pair)
-            if len(pair_positions) == 2 and pair_positions[1] == pair_positions[0] + 1:
-                protected_breaks.add(pair_positions[0])
-    pages: list[dict] = []
-    first, last = min(positions), max(positions)
-    start = first
-    while start <= last:
-        end = min(start + PDF_TRUSSES_PER_PAGE - 1, last)
-        if end < last and end in protected_breaks:
-            end -= 1
-        page = deepcopy(project)
-        page["name"] = f'{project["name"]} - {start}-{end}'
-        for bay in page["bays"]:
-            bay["trusses"] = [truss for truss in bay["trusses"] if start <= truss["position"] <= end]
-        pages.append(page)
-        start = end + 1
-    return pages
+    """Compatibility helper: Alpha 5 never splits a full-project export."""
+    return [project]
 
 
-def render_plan_pdf(project: dict, language: str = "cs") -> bytes:
-    register_pdf_fonts()
-    page_size = landscape(A3)
-    output = io.BytesIO()
-    pdf = canvas.Canvas(output, pagesize=page_size, pageCompression=1)
-    pdf.setTitle(f'{project["name"]} - {APP_VERSION}')
-    pdf.setAuthor("ZIPP Diagnostika")
-    pdf.setSubject(APP_VERSION)
-    page_projects = _pdf_projects(project)
-    for page_number, page_project in enumerate(page_projects, start=1):
-        drawing = svg_drawing(page_project, language)
-        available_w, available_h = page_size[0] - 42, page_size[1] - 42
-        scale = min(available_w / drawing.width, available_h / drawing.height)
-        x = (page_size[0] - drawing.width * scale) / 2
-        y = (page_size[1] - drawing.height * scale) / 2
-        from reportlab.graphics import renderPDF
+def render_plan_pdf(
+    project: dict,
+    language: str = "cs",
+    page_size: str = "A3",
+    font_size: str = "auto",
+) -> bytes:
+    from .plan_pdf import render_full_plan_pdf
 
-        pdf.saveState()
-        pdf.translate(x, y)
-        pdf.scale(scale, scale)
-        renderPDF.draw(drawing, pdf, 0, 0)
-        pdf.restoreState()
-        pdf.setFont("ZippSans", 8)
-        pdf.drawString(18, 12, f"ZIPP Diagnostika - {APP_VERSION}")
-        pdf.drawRightString(page_size[0] - 18, 12, f"{page_number}/{len(page_projects)}")
-        pdf.showPage()
-    pdf.save()
-    return output.getvalue()
+    return render_full_plan_pdf(project, language, page_size=page_size, font_size=font_size)

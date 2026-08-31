@@ -1,8 +1,8 @@
-# ZIPP Diagnostika - Alpha 4
+# ZIPP Diagnostika - Alpha 5
 
 ZIPP Diagnostika je lokální webová aplikace pro evidenci diagnostiky betonových dodatečně předpínaných ZIPP vazníků. Funguje bez internetového připojení na Windows 11 i Raspberry Pi; pro vzdálený provoz lze použít vlastní doménu a Cloudflare Tunnel.
 
-Aktuální vydání: **Alpha 4**
+Aktuální vydání: **Alpha 5**
 
 ## Hlavní funkce
 
@@ -18,6 +18,8 @@ Aktuální vydání: **Alpha 4**
 - souvislý půdorys vícelodní haly se společnými hranicemi,
 - PDF celé zakázky a lokalizovaný PDF report jednotlivé lodě,
 - volba velikosti písma reportu lodě,
+- jednostránkový export celé zakázky na A4/A3/A2/A1/A0 s volbou Auto nebo 7/9/10/12/14 pt,
+- vložený otevřený Unicode font DejaVu Sans pro spolehlivou CZ/SK diakritiku bez internetového připojení,
 - přejmenování, archivace a silně potvrzené trvalé smazání zakázky,
 - ověřené SQLite zálohy a bezpečný update.
 
@@ -67,7 +69,7 @@ Samostatné skripty jsou v `scripts/raspberry/`:
 - `backup_raspberry_docker.sh`,
 - `change_password_raspberry.sh`.
 
-Compose používá image `zipp-diagnostics:alpha4`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby.
+Compose používá image `zipp-diagnostics:alpha5`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
 
 ## Cloudflare Tunnel
 
@@ -93,7 +95,7 @@ Windows i Raspberry Pi update vždy:
 6. spustí health check,
 7. ponechá databázi i backup při selhání.
 
-Migrace Alpha 4 přidávají:
+Alpha 5 databázovou migraci nepotřebuje. Historické migrace Alpha 4 přidávají:
 
 - Alpha 3 metadata `single_v` bez změny existujících labelů,
 - FK-free `project_deletion_logs` pro minimální stopu trvalého smazání.
@@ -116,6 +118,12 @@ Před exportem lze vybrat Menší / Normální / Větší / Velké písmo. Norm�
 
 Report obsahuje aktuální název zakázky a lodě, čas, souhrn, společně renderované schéma a tabulku skutečných stavů L/P. Vyřazení nikdy nepředstírá dokončení neprovedené strany.
 
+## PDF celé zakázky
+
+Před stažením se otevře dialog s formátem A4 až A0 a velikostí písma Auto / 7 / 9 / 10 / 12 / 14 pt. Výchozí volba je A3 na šířku a Auto. Poslední volba se ukládá jen v prohlížeči.
+
+Export má vždy právě jednu stranu. Geometrie se přizpůsobuje prostoru odděleně od fyzické velikosti textu. Pokud výslovně zvolená kombinace bezpečně nevyjde, server vrátí srozumitelné odmítnutí a doporučí větší papír nebo menší písmo; nikdy nevytvoří druhou stranu ani potichu nezmenší explicitní písmo.
+
 ## Testování
 
 Rychlá kompletní sada:
@@ -134,4 +142,4 @@ $env:STABILITY_SECONDS="30"
 
 Produkční desetiminutový víceklientový test ponechte s výchozím `STABILITY_SECONDS=600`.
 
-Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 4**.
+Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 5**.

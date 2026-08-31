@@ -1,4 +1,6 @@
 (() => {
+  const scriptVersion = "Alpha 5";
+  if (document.body) document.body.dataset.jsVersion = scriptVersion;
   const storageKey = "zipp.technician";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -49,14 +51,7 @@
     setTimeout(() => dialog.querySelector("input").focus(), 0);
   }
 
-  async function api(url, options = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    });
-    let data = null;
-    try { data = await response.json(); } catch (_) { /* response has no JSON */ }
-    if (!response.ok) {
+  function responseError(response, data) {
       const detail = data?.detail;
       if (response.status === 401) {
         location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
@@ -81,9 +76,43 @@
       const error = new Error(message);
       error.status = response.status;
       error.data = data;
-      throw error;
-    }
+      return error;
+  }
+
+  async function api(url, options = {}) {
+    const response = await fetch(url, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+    let data = null;
+    try { data = await response.json(); } catch (_) { /* response has no JSON */ }
+    if (!response.ok) throw responseError(response, data);
     return data;
+  }
+
+  async function downloadPdf(url, fallbackFilename) {
+    const response = await fetch(url, { headers: { Accept: "application/pdf" } });
+    if (!response.ok) {
+      let data = null;
+      try { data = await response.json(); } catch (_) { /* non-JSON server error */ }
+      throw responseError(response, data);
+    }
+    const blob = await response.blob();
+    if (!blob.type.toLowerCase().includes("pdf") || blob.size < 5) {
+      throw new Error(t("save.failed"));
+    }
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const matched = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = matched?.[1] || fallbackFilename;
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+    return filename;
   }
 
   updateTechnicianUI();
@@ -208,17 +237,61 @@
     exportForm.elements.font_size.value = ["small", "normal", "larger", "large"].includes(stored) ? stored : "normal";
     exportDialog.showModal();
   });
-  if (exportForm) exportForm.addEventListener("submit", (event) => {
+  if (exportForm) exportForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const fontSize = exportForm.elements.font_size.value;
     localStorage.setItem(exportStorageKey, fontSize);
-    const link = document.createElement("a");
-    link.href = `/api/bays/${exportForm.dataset.bayId}/report.pdf?lang=${encodeURIComponent(language)}&font_size=${encodeURIComponent(fontSize)}`;
-    link.download = "";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    exportDialog.close();
+    const submit = $("[data-bay-export-submit]", exportForm);
+    submit.disabled = true;
+    try {
+      await downloadPdf(
+        `/api/bays/${exportForm.dataset.bayId}/report.pdf?lang=${encodeURIComponent(language)}&font_size=${encodeURIComponent(fontSize)}`,
+        `zipp-bay-${exportForm.dataset.bayId}.pdf`,
+      );
+      exportDialog.close();
+      notify(t("report.export_ready"));
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  const planExportStorageKey = "zipp.planExportOptions";
+  const planExportDialog = $("[data-plan-export-dialog]");
+  const planExportButton = $("[data-open-plan-export]");
+  const planExportForm = $("[data-plan-export-form]");
+  if (planExportButton && planExportDialog && planExportForm) planExportButton.addEventListener("click", () => {
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem(planExportStorageKey) || "{}"); } catch (_) { /* invalid old preference */ }
+    planExportForm.elements.page_size.value = ["A4", "A3", "A2", "A1", "A0"].includes(stored.page_size) ? stored.page_size : "A3";
+    planExportForm.elements.font_size.value = ["auto", "7", "9", "10", "12", "14"].includes(stored.font_size) ? stored.font_size : "auto";
+    $("[data-plan-export-error]", planExportForm).textContent = "";
+    planExportDialog.showModal();
+  });
+  if (planExportForm) planExportForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const pageSize = planExportForm.elements.page_size.value;
+    const fontSize = planExportForm.elements.font_size.value;
+    const errorNode = $("[data-plan-export-error]", planExportForm);
+    const submit = $("[data-plan-export-submit]", planExportForm);
+    errorNode.textContent = "";
+    localStorage.setItem(planExportStorageKey, JSON.stringify({ page_size: pageSize, font_size: fontSize }));
+    submit.disabled = true;
+    try {
+      await downloadPdf(
+        `/api/projects/${planExportForm.dataset.projectId}/plan.pdf?lang=${encodeURIComponent(language)}&page_size=${encodeURIComponent(pageSize)}&font_size=${encodeURIComponent(fontSize)}`,
+        `zipp-plan-project-${planExportForm.dataset.projectId}.pdf`,
+      );
+      planExportDialog.close();
+      notify(t("plan.export_ready"));
+    } catch (error) {
+      const recommendations = error.data?.detail?.recommendations || [];
+      errorNode.textContent = [error.message, ...recommendations].join("\n");
+      notify(error.message, "error");
+    } finally {
+      submit.disabled = false;
+    }
   });
 
   const initialPlanImage = $("[data-plan-image]");

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123a32">
   <title>{{ tr('login.title') }} · {{ tr('app.name') }}</title>
-  <link rel="stylesheet" href="/static/app.css">
-  <link rel="stylesheet" href="/static/alpha4.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/alpha5.css?v={{ asset_version }}">
   <script>window.ZIPP_I18N={{ i18n_json|safe }};window.ZIPP_LANG={{ lang|tojson }};</script>
-  <script src="/static/app.js" defer></script>
+  <script src="/static/app.js?v={{ asset_version }}" defer></script>
 </head>
 <body class="login-page">
   <div class="login-language language-switch">
@@ -26,7 +26,7 @@
       <label>{{ tr('login.password') }}
         <input type="password" name="password" autocomplete="current-password" required autofocus>
       </label>
-      <button class="button primary" {{ 'disabled' if not configured }}>{{ tr('login.submit') }}</button>
+      <button type="submit" class="button primary" {{ 'disabled' if not configured }}>{{ tr('login.submit') }}</button>
     </form>
     <p class="login-version">{{ version }}</p>
   </main>

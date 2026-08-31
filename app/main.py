@@ -52,7 +52,12 @@ app.add_middleware(
 )
 app.state.session_factory = SessionLocal
 templates = Jinja2Templates(directory="app/templates")
-templates.env.globals.update(version=__version__, type_labels=TYPE_LABELS, reason_labels=REASON_LABELS)
+templates.env.globals.update(
+    version=__version__,
+    asset_version=__version__.lower().replace(" ", "-"),
+    type_labels=TYPE_LABELS,
+    reason_labels=REASON_LABELS,
+)
 logger = logging.getLogger("uvicorn.error")
 
 

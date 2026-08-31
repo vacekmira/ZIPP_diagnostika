@@ -40,6 +40,7 @@ from .domain import (
 from .models import AuditLog, Bay, DilationPair, DilationPairMember, Project, Truss
 from .i18n import normalize_language
 from .plan import render_plan_pdf, render_plan_svg
+from .plan_pdf import ExportLayoutError
 from .realtime import manager
 from .schemas import (
     ActorOperation,
@@ -173,12 +174,28 @@ def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = N
 
 
 @router.get("/projects/{project_id}/plan.pdf")
-def project_plan_pdf(project_id: int, lang: str = "cs", db: Session = Depends(get_db)):
+def project_plan_pdf(
+    project_id: int,
+    lang: str = "cs",
+    page_size: Literal["A4", "A3", "A2", "A1", "A0"] = "A3",
+    font_size: Literal["auto", "7", "9", "10", "12", "14"] = "auto",
+    db: Session = Depends(get_db),
+):
     project = project_dict(load_project(db, project_id))
-    pdf = render_plan_pdf(project, normalize_language(lang))
+    try:
+        pdf = render_plan_pdf(
+            project,
+            normalize_language(lang),
+            page_size=page_size,
+            font_size=font_size,
+        )
+    except ExportLayoutError as exc:
+        raise HTTPException(422, exc.as_detail()) from exc
     return Response(pdf, media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="zipp-plan-project-{project_id}.pdf"',
         "Cache-Control": "no-store",
+        "X-Zipp-Page-Size": page_size,
+        "X-Zipp-Font-Size": font_size,
     })
 
 
