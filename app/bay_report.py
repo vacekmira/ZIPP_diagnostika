@@ -6,12 +6,12 @@ from datetime import datetime
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT
-from reportlab.lib.pagesizes import A3, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from . import APP_VERSION
+from .export_options import ExportOptions
 from .i18n import translator
 from .plan import build_plan_geometry, register_pdf_fonts, svg_drawing
 
@@ -37,7 +37,7 @@ FONT_PROFILES = {
 
 FONT_PROFILE_ALIASES = {
     "auto": "10",
-    # Backward-compatible API values from Alpha 4/5.
+    # Backward-compatible API values from Alpha 4-6.
     "small": "7",
     "normal": "10",
     "larger": "12",
@@ -93,14 +93,16 @@ def render_bay_report_pdf(
     language: str = "cs",
     created_at: datetime | None = None,
     font_profile: str = "auto",
+    options: ExportOptions | None = None,
 ) -> bytes:
     """Create a read-only localized report from current serialized DB state."""
     register_pdf_fonts()
     tr = translator(language)
-    profile = get_font_profile(font_profile)
+    options = options or ExportOptions(font_size=font_profile)
+    profile = get_font_profile(options.font_size)
     created_at = created_at or datetime.now().astimezone()
     output = io.BytesIO()
-    page_size = landscape(A3)
+    page_size = options.page_dimensions
     document = SimpleDocTemplate(
         output,
         pagesize=page_size,
@@ -110,8 +112,9 @@ def render_bay_report_pdf(
         bottomMargin=14 * mm,
         title=f'{tr("report.title")} - {project["name"]} - {bay["name"]}',
         author="ZIPP Diagnostika",
-        subject=APP_VERSION,
+        subject=tr("report.title"),
     )
+    available_width = page_size[0] - document.leftMargin - document.rightMargin
 
     body = ParagraphStyle(
         "ZippBody", fontName="ZippSans", fontSize=profile.body, leading=profile.body * 1.32,
@@ -151,7 +154,12 @@ def render_bay_report_pdf(
         (tr("report.excluded_trusses"), progress["excluded"]),
     ]
     summary_data = [[_paragraph(label, body), _paragraph(value, body)] for label, value in summary_rows]
-    summary = Table(summary_data, colWidths=[62 * mm, 22 * mm], hAlign="LEFT")
+    summary_label_width = min(62 * mm, available_width * 0.72)
+    summary = Table(
+        summary_data,
+        colWidths=[summary_label_width, min(22 * mm, available_width - summary_label_width)],
+        hAlign="LEFT",
+    )
     summary.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f2f5f2")),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5cf")),
@@ -170,14 +178,12 @@ def render_bay_report_pdf(
         Spacer(1, 2 * mm),
         _paragraph(f'{bay_label}: {bay_value}', body),
         _paragraph(f'{tr("report.created_at")}: {created_at.strftime("%Y-%m-%d %H:%M %Z")}', small),
-        _paragraph(f'{tr("app.version")} {APP_VERSION}', small),
         _paragraph(tr("report.summary"), subheading),
         summary,
         _paragraph(tr("report.diagram"), subheading),
     ]
 
-    available_width = page_size[0] - document.leftMargin - document.rightMargin
-    max_height = 76 * mm
+    max_height = min(76 * mm, document.height * 0.34)
     geometry = build_plan_geometry(project, {bay["id"]})
     scale = min(available_width / geometry.width, max_height / geometry.height, 1)
     # svglib scales geometry and text together. Compensate before conversion so
@@ -211,10 +217,12 @@ def render_bay_report_pdf(
         # Give the L/P columns enough room for full Czech and Slovak status
         # words at the two accessibility-oriented sizes.
         column_widths = [31, 36, 42, 42, 45, 45, 113]
+    base_widths = column_widths
+    total_width = sum(base_widths)
     table = Table(
         rows,
         repeatRows=1,
-        colWidths=[width * mm for width in column_widths],
+        colWidths=[available_width * width / total_width for width in base_widths],
         hAlign="LEFT",
     )
     table.setStyle(TableStyle([
@@ -233,10 +241,14 @@ def render_bay_report_pdf(
     def footer(pdf_canvas, doc):
         pdf_canvas.saveState()
         footer_data = [[
-            _paragraph(f'ZIPP Diagnostika - {project["name"]} - {bay["name"]}', footer_left),
+            _paragraph(f'ZIPP Diagnostika - {APP_VERSION}', footer_left),
+            _paragraph(f'{project["name"]} - {bay["name"]}', footer_left),
             _paragraph(f'{tr("report.page")} {doc.page}', footer_right),
         ]]
-        footer_table = Table(footer_data, colWidths=[available_width * 0.8, available_width * 0.2])
+        footer_table = Table(
+            footer_data,
+            colWidths=[available_width * 0.32, available_width * 0.48, available_width * 0.2],
+        )
         footer_table.wrapOn(pdf_canvas, available_width, 10 * mm)
         footer_table.drawOn(pdf_canvas, document.leftMargin, 5 * mm)
         pdf_canvas.restoreState()

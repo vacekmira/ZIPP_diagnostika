@@ -3,8 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const base = process.env.ZIPP_E2E_URL || "http://127.0.0.1:8765";
-const password = process.env.ZIPP_E2E_PASSWORD || "Alpha6-test!";
-const output = path.resolve("tmp/browser-alpha6");
+const password = process.env.ZIPP_E2E_PASSWORD || "Alpha7-test!";
+const output = path.resolve("tmp/browser-alpha7");
 await fs.mkdir(output, { recursive: true });
 
 function check(condition, message) {
@@ -20,7 +20,7 @@ async function login(page) {
       page.locator('button[type="submit"]').click(),
     ]);
   }
-  await page.waitForSelector('body[data-app-version="Alpha 6"][data-js-version="Alpha 6"]');
+  await page.waitForSelector('body[data-app-version="Alpha 7"][data-js-version="Alpha 7"]');
 }
 
 async function createProject(page, name, bays, trusses) {
@@ -30,7 +30,7 @@ async function createProject(page, name, bays, trusses) {
   await form.locator('[name="name"]').fill(name);
   await form.locator('[name="bay_count"]').fill(String(bays));
   await form.locator('[name="default_truss_count"]').fill(String(trusses));
-  await form.locator('[name="note"]').fill("Příliš žluťoučký kůň a slovenský kôň – Alpha 6 E2E.");
+  await form.locator('[name="note"]').fill("Příliš žluťoučký kůň a slovenský kôň – Alpha 7 E2E.");
   await Promise.all([
     page.waitForURL(/\/projects\/\d+$/),
     form.locator('button[type="submit"]').click(),
@@ -59,7 +59,7 @@ const contextA = await browser.newContext({ acceptDownloads: true, viewport: { w
 const contextB = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 900 } });
 for (const context of [contextA, contextB]) {
   await context.addInitScript(() => {
-    localStorage.setItem("zipp.technician", "Alpha 6 browser tester");
+    localStorage.setItem("zipp.technician", "Alpha 7 browser tester");
     localStorage.setItem("zipp.language", "cs");
   });
 }
@@ -78,7 +78,7 @@ try {
   await login(pageA);
   await login(pageB);
 
-  const projectId = await createProject(pageA, "Hala Alpha 6 E2E", 3, 24);
+  const projectId = await createProject(pageA, "Hala Alpha 7 E2E", 3, 24);
   await pageB.goto(`${base}/projects/${projectId}`);
   await pageA.waitForSelector('[data-connection][data-state="online"]');
   await pageB.waitForSelector('[data-connection][data-state="online"]');
@@ -95,46 +95,62 @@ try {
   check((await pageA.locator("h1[data-project-name]").textContent()) === "Hala Žďár – zkouška", "Rename did not persist after reload");
 
   const firstBayHref = await pageA.locator(".bay-card").first().getAttribute("href");
-  await pageA.goto(`${base}${firstBayHref}`);
-  for (const size of ["7", "14"]) {
-    await pageA.locator("[data-open-bay-export]").click();
-    await pageA.locator('[data-bay-export-form] select[name="font_size"]').selectOption(size);
-    downloads.push(await savePdfDownload(
-      pageA,
-      pageA.locator("[data-bay-export-submit]"),
-      `alpha6-browser-bay-${size}pt.pdf`,
-    ));
+  const bayUrl = `${base}${firstBayHref}`;
+  await pageA.goto(bayUrl);
+  await pageA.locator('[data-open-export="bay-export-dialog"]').click();
+  const bayDialog = pageA.locator("#bay-export-dialog");
+  check(await bayDialog.isVisible(), "Bay export dialog is not visible");
+  const bayOptionSignature = await bayDialog.locator("option").evaluateAll((options) => options.map((option) => option.value));
+  check(JSON.stringify(bayOptionSignature) === JSON.stringify([
+    "A4", "A3", "A2", "A1", "A0", "landscape", "portrait", "auto", "7", "9", "10", "12", "14",
+  ]), "Bay dialog does not offer the complete shared options");
+  await pageA.screenshot({ path: path.join(output, "alpha7-bay-export-dialog.png"), fullPage: true });
+  await bayDialog.locator("[data-close-dialog]").click();
+  const bayCases = [
+    ["A4", "landscape", "7", "alpha7-browser-bay-A4-landscape-7.pdf"],
+    ["A2", "portrait", "14", "alpha7-browser-bay-A2-portrait-14.pdf"],
+  ];
+  for (const [paper, orientation, font, filename] of bayCases) {
+    await pageA.locator('[data-open-export="bay-export-dialog"]').click();
+    const form = bayDialog.locator("[data-export-form]");
+    await form.locator('[name="page_size"]').selectOption(paper);
+    await form.locator('[name="orientation"]').selectOption(orientation);
+    await form.locator('[name="font_size"]').selectOption(font);
+    downloads.push(await savePdfDownload(pageA, form.locator("[data-export-submit]"), filename));
   }
 
   await pageA.goto(`${base}/projects/${projectId}/plan`);
   check((await pageA.locator("h1[data-project-name]").textContent()) === "Hala Žďár – zkouška", "Plan heading has a stale project name");
-  await pageA.locator("[data-open-plan-export]").click();
-  const visibleDialog = pageA.locator("[data-plan-export-dialog]");
+  await pageA.locator('[data-open-export="plan-export-dialog"]').click();
+  const visibleDialog = pageA.locator("#plan-export-dialog");
   check(await visibleDialog.isVisible(), "Plan export dialog is not visible");
-  check(await visibleDialog.locator('[name="page_size"] option').count() === 5, "Plan dialog does not offer A4-A0");
-  check(await visibleDialog.locator('[name="orientation"] option').count() === 2, "Plan dialog does not offer both orientations");
-  check(await visibleDialog.locator('[name="font_size"] option').count() === 6, "Plan dialog does not offer Auto-14 pt");
-  await pageA.screenshot({ path: path.join(output, "alpha6-plan-export-dialog.png"), fullPage: true });
+  const planOptionSignature = await visibleDialog.locator("option").evaluateAll((options) => options.map((option) => option.value));
+  check(JSON.stringify(planOptionSignature) === JSON.stringify(bayOptionSignature), "Bay and plan dialogs do not have identical options");
+  check(await visibleDialog.locator('[name="page_size"]').inputValue() === "A2", "Page-size preference was not shared from bay to plan");
+  check(await visibleDialog.locator('[name="orientation"]').inputValue() === "portrait", "Orientation preference was not shared from bay to plan");
+  check(await visibleDialog.locator('[name="font_size"]').inputValue() === "14", "Font-size preference was not shared from bay to plan");
+  await pageA.screenshot({ path: path.join(output, "alpha7-plan-export-dialog.png"), fullPage: true });
   await visibleDialog.locator("[data-close-dialog]").click();
   const planCases = [
-    ["A4", "landscape", "auto", "alpha6-browser-plan-A4-landscape-auto.pdf"],
-    ["A3", "landscape", "10", "alpha6-browser-plan-A3-landscape-10.pdf"],
-    ["A2", "portrait", "14", "alpha6-browser-plan-A2-portrait-14.pdf"],
+    ["A4", "landscape", "auto", "alpha7-browser-plan-A4-landscape-auto.pdf"],
+    ["A2", "portrait", "14", "alpha7-browser-plan-A2-portrait-14.pdf"],
+    ["A3", "landscape", "10", "alpha7-browser-plan-A3-landscape-10.pdf"],
   ];
   for (const [paper, orientation, font, filename] of planCases) {
-    await pageA.locator("[data-open-plan-export]").click();
-    const form = pageA.locator("[data-plan-export-form]");
+    await pageA.locator('[data-open-export="plan-export-dialog"]').click();
+    const form = visibleDialog.locator("[data-export-form]");
     await form.locator('[name="page_size"]').selectOption(paper);
     await form.locator('[name="orientation"]').selectOption(orientation);
     await form.locator('[name="font_size"]').selectOption(font);
-    downloads.push(await savePdfDownload(pageA, form.locator("[data-plan-export-submit]"), filename));
+    downloads.push(await savePdfDownload(pageA, form.locator("[data-export-submit]"), filename));
   }
-  await pageA.locator("[data-open-plan-export]").click();
-  check(await pageA.locator('[data-plan-export-form] [name="page_size"]').inputValue() === "A2", "Page-size preference was not restored");
-  check(await pageA.locator('[data-plan-export-form] [name="orientation"]').inputValue() === "portrait", "Orientation preference was not restored");
-  check(await pageA.locator('[data-plan-export-form] [name="font_size"]').inputValue() === "14", "Font-size preference was not restored");
-  await pageA.locator("[data-plan-export-form] [data-close-dialog]").click();
-  await pageA.screenshot({ path: path.join(output, "alpha6-plan-page.png"), fullPage: true });
+  await pageA.screenshot({ path: path.join(output, "alpha7-plan-page.png"), fullPage: true });
+  await pageA.goto(bayUrl);
+  await pageA.locator('[data-open-export="bay-export-dialog"]').click();
+  check(await pageA.locator('#bay-export-dialog [name="page_size"]').inputValue() === "A3", "Page-size preference was not shared from plan to bay");
+  check(await pageA.locator('#bay-export-dialog [name="orientation"]').inputValue() === "landscape", "Orientation preference was not shared from plan to bay");
+  check(await pageA.locator('#bay-export-dialog [name="font_size"]').inputValue() === "10", "Font-size preference was not shared from plan to bay");
+  await pageA.locator("#bay-export-dialog [data-close-dialog]").click();
 
   const keptId = await createProject(pageA, "Hala, která zůstane", 1, 2);
   check(keptId !== projectId, "Control project reused the deleted project's id");
@@ -161,7 +177,7 @@ try {
   const missing = await pageA.goto(`${base}/projects/${projectId}`);
   check(missing.status() === 404, `Deleted project returned ${missing.status()} instead of 404`);
   await pageA.goto(`${base}/`);
-  await pageA.screenshot({ path: path.join(output, "alpha6-after-delete.png"), fullPage: true });
+  await pageA.screenshot({ path: path.join(output, "alpha7-after-delete.png"), fullPage: true });
 
   const result = {
     projectId,

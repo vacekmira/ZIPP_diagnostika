@@ -13,6 +13,7 @@ from svglib.svglib import svg2rlg
 
 from . import APP_VERSION
 from .domain import bay_code
+from .export_options import ExportOptions
 from .i18n import translator
 
 
@@ -185,6 +186,7 @@ def render_plan_svg(
     bay_ids: set[int] | None = None,
     font_scale: float = 1.0,
     base_font_size: float | None = None,
+    include_version: bool = True,
 ) -> str:
     tr = translator(language)
     geometry = build_plan_geometry(project, bay_ids)
@@ -215,7 +217,8 @@ def render_plan_svg(
         '<rect width="100%" height="100%" fill="#fff"/>',
         f'<text x="{MARGIN_LEFT}" y="34" font-size="{title_size:g}" font-weight="700"{title_fit}>'
         f'{escape(project["name"])}</text>',
-        f'<text x="{MARGIN_LEFT}" y="57" class="small muted">{escape(tr("plan.title"))} - {escape(APP_VERSION)}</text>',
+        f'<text x="{MARGIN_LEFT}" y="57" class="small muted">{escape(tr("plan.title"))}'
+        f'{" - " + escape(APP_VERSION) if include_version else ""}</text>',
     ]
 
     # Shared boundaries are emitted exactly once for the entire hall.
@@ -357,7 +360,14 @@ def svg_drawing(
     # svglib treats a CSS fallback list as an unknown family and silently
     # replaces it with Helvetica.  Feed it the exact registered family so
     # Czech and Slovak glyphs remain embedded in bay-report diagrams.
-    source = render_plan_svg(project, language, bay_ids, font_scale, base_font_size).replace(
+    source = render_plan_svg(
+        project,
+        language,
+        bay_ids,
+        font_scale,
+        base_font_size,
+        include_version=False,
+    ).replace(
         'font-family:ZippSans,"DejaVu Sans",Arial,sans-serif',
         "font-family:ZippSans",
     )
@@ -385,7 +395,7 @@ def _force_embedded_unicode_fonts(node, seen: set[int] | None = None) -> None:
 
 
 def _pdf_projects(project: dict) -> list[dict]:
-    """Compatibility helper: Alpha 6 never splits a full-project export."""
+    """Compatibility helper: Alpha 7 never splits a full-project export."""
     return [project]
 
 
@@ -395,6 +405,7 @@ def render_plan_pdf(
     page_size: str = "A3",
     font_size: str = "auto",
     orientation: str = "landscape",
+    options: ExportOptions | None = None,
 ) -> bytes:
     from .plan_pdf import render_full_plan_pdf
 
@@ -404,4 +415,5 @@ def render_plan_pdf(
         page_size=page_size,
         font_size=font_size,
         orientation=orientation,
+        options=options,
     )

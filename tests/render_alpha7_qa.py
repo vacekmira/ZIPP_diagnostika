@@ -4,11 +4,12 @@ from datetime import datetime
 from pathlib import Path
 
 from app.bay_report import render_bay_report_pdf
+from app.export_options import ExportOptions
 from app.plan import render_plan_pdf
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "tmp" / "pdfs" / "alpha6-matrix"
+MATRIX = ROOT / "tmp" / "pdfs" / "alpha7-matrix"
 FINAL = ROOT / "output" / "pdf"
 
 
@@ -71,7 +72,7 @@ def reference_project() -> dict:
     return {
         "id": 1,
         "name": "Hala Žďár – zkouška",
-        "note": "Česká a slovenská vizuální matice Alpha 6.",
+        "note": "Česká a slovenská vizuální matice Alpha 7.",
         "archived": False,
         "revision": 5,
         "progress": progress([truss for bay in bays for truss in bay["trusses"]]),
@@ -89,16 +90,29 @@ def main() -> None:
         ("full-A2-portrait-14.pdf", "A2", "portrait", "14"),
     )
     for filename, paper, orientation, font in cases:
-        data = render_plan_pdf(project, "cs", page_size=paper, orientation=orientation, font_size=font)
+        options = ExportOptions(page_size=paper, orientation=orientation, font_size=font)
+        data = render_plan_pdf(project, "cs", options=options)
         (MATRIX / filename).write_bytes(data)
         if filename == "full-A2-portrait-14.pdf":
-            (FINAL / "zipp-alpha6-reference-A2-portrait-14.pdf").write_bytes(data)
-    created_at = datetime(2026, 8, 31, 10, 30).astimezone()
-    (MATRIX / "bay-A-7pt-cs.pdf").write_bytes(
-        render_bay_report_pdf(project, project["bays"][0], "cs", created_at, "7")
+            (FINAL / "zipp-alpha7-reference-A2-portrait-14.pdf").write_bytes(data)
+    created_at = datetime(2026, 9, 1, 10, 30).astimezone()
+    (MATRIX / "bay-A4-landscape-7pt-cs.pdf").write_bytes(
+        render_bay_report_pdf(
+            project,
+            project["bays"][0],
+            "cs",
+            created_at,
+            options=ExportOptions("A4", "landscape", "7"),
+        )
     )
-    (MATRIX / "bay-B-14pt-sk.pdf").write_bytes(
-        render_bay_report_pdf(project, project["bays"][1], "sk", created_at, "14")
+    (MATRIX / "bay-A2-portrait-14pt-sk.pdf").write_bytes(
+        render_bay_report_pdf(
+            project,
+            project["bays"][1],
+            "sk",
+            created_at,
+            options=ExportOptions("A2", "portrait", "14"),
+        )
     )
 
 

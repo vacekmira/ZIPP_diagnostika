@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import re
 import unicodedata
-from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import __version__
 from .bay_report import render_bay_report_pdf
 from .database import get_db
+from .export_options import ExportOptions, FontSizeQuery, Orientation, PageSize
 from .auth import require_api_auth
 from .domain import (
     audit,
@@ -177,20 +177,15 @@ def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = N
 def project_plan_pdf(
     project_id: int,
     lang: str = "cs",
-    page_size: Literal["A4", "A3", "A2", "A1", "A0"] = "A3",
-    orientation: Literal["landscape", "portrait"] = "landscape",
-    font_size: Literal["auto", "7", "9", "10", "12", "14"] = "auto",
+    page_size: PageSize = "A3",
+    orientation: Orientation = "landscape",
+    font_size: FontSizeQuery = "auto",
     db: Session = Depends(get_db),
 ):
     project = project_dict(load_project(db, project_id))
     try:
-        pdf = render_plan_pdf(
-            project,
-            normalize_language(lang),
-            page_size=page_size,
-            font_size=font_size,
-            orientation=orientation,
-        )
+        options = ExportOptions(page_size, orientation, font_size)
+        pdf = render_plan_pdf(project, normalize_language(lang), options=options)
     except ExportLayoutError as exc:
         raise HTTPException(422, exc.as_detail()) from exc
     return Response(pdf, media_type="application/pdf", headers={
@@ -237,21 +232,29 @@ def get_bay(bay_id: int, db: Session = Depends(get_db)):
 def bay_report_pdf(
     bay_id: int,
     lang: str = "cs",
-    font_size: Literal[
-        "auto", "7", "9", "10", "12", "14",
-        "small", "normal", "larger", "large",
-    ] = "auto",
+    page_size: PageSize = "A3",
+    orientation: Orientation = "landscape",
+    font_size: FontSizeQuery = "auto",
     db: Session = Depends(get_db),
 ):
     bay = load_bay(db, bay_id)
     project = project_dict(load_project(db, bay.project_id))
     bay_data = next(item for item in project["bays"] if item["id"] == bay_id)
     created_at = datetime.now().astimezone()
-    pdf = render_bay_report_pdf(project, bay_data, normalize_language(lang), created_at, font_size)
+    options = ExportOptions(page_size, orientation, font_size)
+    pdf = render_bay_report_pdf(
+        project,
+        bay_data,
+        normalize_language(lang),
+        created_at,
+        options=options,
+    )
     filename = safe_export_filename(project["name"], bay_data["name"], created_at.strftime("%Y-%m-%d"))
     return Response(pdf, media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
         "Cache-Control": "no-store",
+        "X-Zipp-Page-Size": page_size,
+        "X-Zipp-Orientation": orientation,
         "X-Zipp-Font-Size": font_size,
     })
 

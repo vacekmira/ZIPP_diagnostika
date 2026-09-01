@@ -1,8 +1,8 @@
-# ZIPP Diagnostika - Alpha 6
+# ZIPP Diagnostika - Alpha 7
 
 ZIPP Diagnostika je lokální webová aplikace pro evidenci diagnostiky betonových dodatečně předpínaných ZIPP vazníků. Funguje bez internetového připojení na Windows 11 i Raspberry Pi; pro vzdálený provoz lze použít vlastní doménu a Cloudflare Tunnel.
 
-Aktuální vydání: **Alpha 6**
+Aktuální vydání: **Alpha 7**
 
 ## Hlavní funkce
 
@@ -17,7 +17,7 @@ Aktuální vydání: **Alpha 6**
 - realtime synchronizace a automatický reconnect,
 - souvislý půdorys vícelodní haly se společnými hranicemi,
 - PDF celé zakázky a lokalizovaný PDF report jednotlivé lodě,
-- fyzická volba Auto nebo 7/9/10/12/14 pt pro všechny texty reportu lodě včetně schématu,
+- společné volby A4/A3/A2/A1/A0, Landscape/Portrait a Auto/7/9/10/12/14 pt pro export objektu i jednotlivé lodě,
 - jednostránkový export celé zakázky na A4/A3/A2/A1/A0, Landscape/Portrait a Auto nebo 7/9/10/12/14 pt,
 - vložený otevřený Unicode font DejaVu Sans pro spolehlivou CZ/SK diakritiku bez internetového připojení,
 - přejmenování, archivace a silně potvrzené trvalé smazání zakázky,
@@ -69,7 +69,7 @@ Samostatné skripty jsou v `scripts/raspberry/`:
 - `backup_raspberry_docker.sh`,
 - `change_password_raspberry.sh`.
 
-Compose používá image `zipp-diagnostics:alpha6`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
+Compose používá image `zipp-diagnostics:alpha7`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
 
 ## Cloudflare Tunnel
 
@@ -95,7 +95,7 @@ Windows i Raspberry Pi update vždy:
 6. spustí health check,
 7. ponechá databázi i backup při selhání.
 
-Alpha 6 databázovou migraci nepotřebuje. Historické migrace Alpha 4 přidávají:
+Alpha 7 databázovou migraci nepotřebuje. Historické migrace Alpha 4 přidávají:
 
 - Alpha 3 metadata `single_v` bez změny existujících labelů,
 - FK-free `project_deletion_logs` pro minimální stopu trvalého smazání.
@@ -114,7 +114,7 @@ Archivace je vratná a data zachová. Trvalé smazání je samostatná operace:
 
 ## PDF report lodě
 
-Před exportem lze vybrat Auto / 7 / 9 / 10 / 12 / 14 pt. Volba mění texty reportu i fyzickou velikost labelů, L/P, názvů, stavů a legendy uvnitř schématu. Poslední volba se uchovává pouze v prohlížeči.
+Před exportem lze stejně jako u celého objektu vybrat A4 až A0, Landscape / Portrait a Auto / 7 / 9 / 10 / 12 / 14 pt. Volba mění rozměr stránky i texty reportu včetně labelů, L/P, názvů, stavů a legendy uvnitř schématu. Poslední společná volba se uchovává pouze v prohlížeči.
 
 Report obsahuje aktuální název zakázky a lodě, čas, souhrn, společně renderované schéma a tabulku skutečných stavů L/P. Vyřazení nikdy nepředstírá dokončení neprovedené strany.
 
@@ -142,4 +142,4 @@ $env:STABILITY_SECONDS="30"
 
 Produkční desetiminutový víceklientový test ponechte s výchozím `STABILITY_SECONDS=600`.
 
-Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 6**.
+Verze aplikace se v PDF uvádí pouze v zápatí. Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 7**.

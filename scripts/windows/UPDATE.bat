@@ -29,7 +29,7 @@ python -m app.cli check-schema
 if errorlevel 1 goto :error
 python -c "from app.main import health; result=health(); assert result['status']=='ok'; print('Health check:', result)"
 if errorlevel 1 goto :error
-echo Aktualizace na Alpha 6, migrace a kontrola databaze byly dokonceny. Spustte START.bat.
+echo Aktualizace na Alpha 7, migrace a kontrola databaze byly dokonceny. Spustte START.bat.
 pause
 exit /b 0
 :error

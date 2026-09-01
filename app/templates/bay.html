@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "_export_options.html" import export_options %}
 {% block title %}{{ bay.name }} · {{ project.name }}{% endblock %}
 {% block content %}
 <nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><a href="/projects/{{ project.id }}" data-project-name>{{ project.name }}</a><span>/</span><span>{{ bay.name }}</span></nav>
 <section class="hero compact bay-hero">
   <div><p class="eyebrow">{{ tr('bay') }} {{ bay.position }}</p><h1>{{ bay.name }}</h1><p data-bay-progress>{{ bay.progress.completed }} / {{ bay.progress.required }} {{ tr('progress.done') }} · {{ bay.progress.remaining }} {{ tr('progress.remaining') }}</p></div>
   <div class="bay-actions">
-    <button type="button" class="button primary" data-open-bay-export>{{ tr('bay.export') }}</button>
+    <button type="button" class="button primary" data-open-export="bay-export-dialog">{{ tr('bay.export') }}</button>
     <a class="button secondary" href="/bays/{{ bay.id }}/settings">{{ tr('bay.settings') }}</a>
   </div>
 </section>
@@ -31,22 +32,14 @@
   {% endfor %}
 </section>
 
-<dialog data-bay-export-dialog>
-  <form class="dialog-form" data-bay-export-form data-bay-id="{{ bay.id }}">
+<dialog id="bay-export-dialog" data-export-dialog>
+  <form class="dialog-form" data-export-form data-export-endpoint="/api/bays/{{ bay.id }}/report.pdf" data-export-filename="zipp-bay-{{ bay.id }}.pdf" data-export-ready-key="report.export_ready">
     <div><p class="eyebrow">{{ tr('bay.export') }}</p><h2>{{ tr('report.export_title') }}</h2><p class="muted">{{ tr('report.export_help') }}</p></div>
-    <label>{{ tr('report.font_size') }}
-      <select name="font_size">
-        <option value="auto" selected>{{ tr('plan.font_auto') }}</option>
-        <option value="7">7 pt</option>
-        <option value="9">9 pt</option>
-        <option value="10">10 pt</option>
-        <option value="12">12 pt</option>
-        <option value="14">14 pt</option>
-      </select>
-    </label>
+    {{ export_options(tr) }}
+    <p class="export-error" data-export-error role="alert"></p>
     <div class="dialog-actions">
       <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
-      <button type="submit" class="button primary" data-bay-export-submit>{{ tr('report.export_pdf') }}</button>
+      <button type="submit" class="button primary" data-export-submit>{{ tr('report.export_pdf') }}</button>
     </div>
   </form>
 </dialog>

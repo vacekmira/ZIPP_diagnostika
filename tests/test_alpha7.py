@@ -6,7 +6,8 @@ from pypdf import PdfReader
 from reportlab.lib.pagesizes import A0, A1, A2, A3, A4, landscape
 
 from app import APP_VERSION
-from app.plan_pdf import FONT_SIZES, PAPER_SIZES, resolve_plan_pdf_layout
+from app.export_options import FONT_SIZES, PAPER_SIZES, ExportOptions
+from app.plan_pdf import resolve_plan_pdf_layout
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,7 @@ def create_project(client, *, bays=3, trusses=24, name="Hala Žďár – zkoušk
         "bay_count": bays,
         "default_truss_count": trusses,
         "note": "Příliš žluťoučký kůň úpěl ďábelské ódy. Kôň, ľalia a ŕieka.",
-        "technician_name": "Alpha 6 tester",
+        "technician_name": "Alpha 7 tester",
     })
     assert response.status_code == 201, response.text
     return response.json()
@@ -30,59 +31,82 @@ def pdf_reader(response) -> PdfReader:
     return PdfReader(io.BytesIO(response.content))
 
 
+def assert_version_is_footer_only(reader: PdfReader) -> None:
+    for page in reader.pages:
+        text = page.extract_text() or ""
+        assert text.count(APP_VERSION) == 1
+        assert f"Půdorys objektu - {APP_VERSION}" not in text
+        assert f"Pôdorys objektu - {APP_VERSION}" not in text
+        assert f"verze {APP_VERSION}" not in text
+        assert f"verzia {APP_VERSION}" not in text
+    metadata_text = " ".join(str(value) for value in (reader.metadata or {}).values())
+    assert APP_VERSION not in metadata_text
+
+
 def add_reference_states(client, project):
     bay = project["bays"][0]
     trusses = bay["trusses"]
     assert client.patch(f"/api/trusses/{trusses[0]['id']}/type", json={
-        "type": "gable", "technician_name": "Alpha 6 tester", "expected_version": trusses[0]["version"],
+        "type": "gable", "technician_name": "Alpha 7 tester", "expected_version": trusses[0]["version"],
     }).status_code == 200
     assert client.post(f"/api/bays/{bay['id']}/dilation-pairs", json={
-        "technician_name": "Alpha 6 tester",
+        "technician_name": "Alpha 7 tester",
         "truss_a_id": trusses[4]["id"],
         "truss_b_id": trusses[5]["id"],
         "expected_version_a": trusses[4]["version"],
         "expected_version_b": trusses[5]["version"],
     }).status_code == 201
     assert client.put(f"/api/trusses/{trusses[2]['id']}/diagnostics/left", json={
-        "done": True, "technician_name": "Alpha 6 tester", "expected_version": trusses[2]["version"],
+        "done": True, "technician_name": "Alpha 7 tester", "expected_version": trusses[2]["version"],
     }).status_code == 200
     assert client.post(f"/api/trusses/{trusses[3]['id']}/exclude", json={
-        "reason": "leak", "note": "Zatečení u Žďáru.", "technician_name": "Alpha 6 tester",
+        "reason": "leak", "note": "Zatečení u Žďáru.", "technician_name": "Alpha 7 tester",
         "expected_version": trusses[3]["version"],
     }).status_code == 200
 
 
-def test_current_release_assets_font_and_deployment_are_alpha6(client):
-    assert APP_VERSION == "Alpha 6"
-    assert client.get("/health").json()["version"] == "Alpha 6"
-    assert 'version = "0.6.0a6"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "zipp-diagnostics:alpha6" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+def test_current_release_assets_font_and_deployment_are_alpha7(client):
+    assert APP_VERSION == "Alpha 7"
+    assert client.get("/health").json()["version"] == "Alpha 7"
+    assert 'version = "0.7.0a7"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "zipp-diagnostics:alpha7" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "fonts-dejavu-core" not in (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert not (ROOT / "app/static/alpha4.css").exists()
-    assert (ROOT / "app/static/alpha6.css").is_file()
+    assert (ROOT / "app/static/alpha7.css").is_file()
     assert (ROOT / "app/assets/fonts/DejaVuSans.ttf").stat().st_size > 500_000
     assert (ROOT / "app/assets/fonts/DejaVuSans-Bold.ttf").stat().st_size > 500_000
     assert (ROOT / "app/assets/fonts/LICENSE-DejaVu.txt").is_file()
     page = client.get("/").text
-    assert "/static/app.js?v=alpha-6" in page
-    assert "/static/alpha6.css?v=alpha-6" in page
-    script = client.get("/static/app.js?v=alpha-6").text
-    assert 'const scriptVersion = "Alpha 6"' in script
-    assert "downloadPdf" in script and "zipp.planExportOptions" in script
+    assert "/static/app.js?v=alpha-7" in page
+    assert "/static/alpha7.css?v=alpha-7" in page
+    script = client.get("/static/app.js?v=alpha-7").text
+    assert 'const scriptVersion = "Alpha 7"' in script
+    assert "downloadPdf" in script and "zipp.exportOptions" in script
 
 
-def test_export_dialog_has_iso_pages_physical_fonts_and_defaults(client):
+def test_bay_and_project_use_the_same_export_options_dialog(client):
     project = create_project(client, bays=1, trusses=10)
-    page = client.get(f"/projects/{project['id']}/plan").text
-    assert "data-plan-export-dialog" in page
-    assert '<option value="A3" selected>' in page
-    assert '<option value="landscape" selected>' in page
-    assert '<option value="portrait">' in page
-    assert '<option value="auto" selected>' in page
-    for paper in PAPER_SIZES:
-        assert f'value="{paper}"' in page
-    for size in FONT_SIZES:
-        assert f'value="{size}"' in page
+    pages = (
+        client.get(f"/projects/{project['id']}/plan").text,
+        client.get(f"/bays/{project['bays'][0]['id']}").text,
+    )
+    expected = ["A4", "A3", "A2", "A1", "A0", "landscape", "portrait", "auto", "7", "9", "10", "12", "14"]
+    for page in pages:
+        assert "data-export-dialog" in page and "data-export-form" in page
+        assert re.findall(r'<option value="([^"]+)"', page) == expected
+        assert '<option value="A3" selected>' in page
+        assert '<option value="landscape" selected>' in page
+        assert '<option value="auto" selected>' in page
+    script = client.get("/static/app.js").text
+    assert script.count("$$('[data-export-form]')") == 1
+    assert "zipp.exportOptions" in script
+
+
+def test_shared_export_options_validate_and_size_pages():
+    options = ExportOptions("A2", "portrait", "14")
+    assert options.page_dimensions == A2
+    assert options.requested_font_size == 14
+    assert ExportOptions("a3", "LANDSCAPE", "large").font_size == "14"
 
 
 def test_every_iso_page_honors_orientation_and_is_exactly_one_page(client):
@@ -126,6 +150,7 @@ def test_full_project_matrix_is_one_page_unicode_and_keeps_requested_font(client
         assert "Běžný" in text
         assert "Dilatační" in text
         assert "Hala Žďár – zkouška" in text
+        assert_version_is_footer_only(reader)
     layout = resolve_plan_pdf_layout(project, "cs", page_size="A2", font_size="12")
     assert layout.font_size == 12
     explicit = client.get(f"/api/projects/{project['id']}/plan.pdf?page_size=A2&font_size=12")
@@ -163,9 +188,21 @@ def test_bay_pdf_physical_sizes_use_embedded_unicode_font_without_black_squares(
     project = create_project(client, bays=1, trusses=10, name="Žďár – česká a slovenská zkouška")
     add_reference_states(client, project)
     byte_lengths = []
-    for size in ("7", "14"):
-        response = client.get(f"/api/bays/{project['bays'][0]['id']}/report.pdf?font_size={size}&lang=sk")
+    cases = (
+        ("A4", "landscape", "7", landscape(A4)),
+        ("A2", "portrait", "14", A2),
+    )
+    for paper, orientation, size, expected_page in cases:
+        response = client.get(
+            f"/api/bays/{project['bays'][0]['id']}/report.pdf?"
+            f"page_size={paper}&orientation={orientation}&font_size={size}&lang=sk"
+        )
         reader = pdf_reader(response)
+        assert response.headers["x-zipp-page-size"] == paper
+        assert response.headers["x-zipp-orientation"] == orientation
+        for page in reader.pages:
+            assert abs(float(page.mediabox.width) - expected_page[0]) < 0.1
+            assert abs(float(page.mediabox.height) - expected_page[1]) < 0.1
         text = "\n".join(page.extract_text() or "" for page in reader.pages)
         assert "■" not in text
         assert "Pôdorys objektu" in text
@@ -177,6 +214,7 @@ def test_bay_pdf_physical_sizes_use_embedded_unicode_font_without_black_squares(
             for reference in page["/Resources"].get("/Font", {}).values():
                 fonts.append(str(reference.get_object().get("/BaseFont")))
         assert any("DejaVuSans" in font for font in fonts)
+        assert_version_is_footer_only(reader)
         byte_lengths.append(len(response.content))
     assert byte_lengths[0] != byte_lengths[1]
 
@@ -201,7 +239,7 @@ def test_pdf_fonts_cover_complete_czech_slovak_latin_extended_sample(client):
 def test_rename_is_reflected_in_fresh_full_pdf_and_keeps_project_id(client):
     project = create_project(client, bays=1, trusses=10, name="Původní hala")
     response = client.patch(f"/api/projects/{project['id']}/name", json={
-        "name": "Hala Žďár – zkouška", "technician_name": "Alpha 6 tester",
+        "name": "Hala Žďár – zkouška", "technician_name": "Alpha 7 tester",
     })
     assert response.status_code == 200
     assert response.json()["id"] == project["id"]
@@ -209,4 +247,5 @@ def test_rename_is_reflected_in_fresh_full_pdf_and_keeps_project_id(client):
     text = reader.pages[0].extract_text()
     assert "Hala Žďár – zkouška" in text
     assert "Původní hala" not in text
-    assert reader.metadata.subject == "Alpha 6"
+    assert reader.metadata.subject == "Půdorys objektu"
+    assert_version_is_footer_only(reader)

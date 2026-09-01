@@ -1,0 +1,29 @@
+{% macro export_options(tr) -%}
+<div class="three-columns" data-export-options>
+  <label>{{ tr('plan.page_size') }}
+    <select name="page_size">
+      <option value="A4">A4</option>
+      <option value="A3" selected>A3</option>
+      <option value="A2">A2</option>
+      <option value="A1">A1</option>
+      <option value="A0">A0</option>
+    </select>
+  </label>
+  <label>{{ tr('plan.orientation') }}
+    <select name="orientation">
+      <option value="landscape" selected>{{ tr('plan.landscape') }}</option>
+      <option value="portrait">{{ tr('plan.portrait') }}</option>
+    </select>
+  </label>
+  <label>{{ tr('report.font_size') }}
+    <select name="font_size">
+      <option value="auto" selected>{{ tr('plan.font_auto') }}</option>
+      <option value="7">7 pt</option>
+      <option value="9">9 pt</option>
+      <option value="10">10 pt</option>
+      <option value="12">12 pt</option>
+      <option value="14">14 pt</option>
+    </select>
+  </label>
+</div>
+{%- endmacro %}

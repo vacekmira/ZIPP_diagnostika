@@ -1,54 +1,29 @@
 {% extends "base.html" %}
+{% from "_export_options.html" import export_options %}
 {% block title %}{{ tr('plan.title') }} · {{ project.name }}{% endblock %}
 {% block content %}
 <nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><a href="/projects/{{ project.id }}" data-project-name>{{ project.name }}</a><span>/</span><span>{{ tr('plan.title') }}</span></nav>
 <nav class="project-tabs"><a href="/projects/{{ project.id }}">{{ tr('tabs.overview') }}</a><a class="active" href="/projects/{{ project.id }}/plan">{{ tr('tabs.plan') }}</a></nav>
 <section class="hero compact">
   <div><p class="eyebrow">{{ tr('plan.title') }}</p><h1 data-project-name>{{ project.name }}</h1><p>{{ tr('plan.description') }}</p></div>
-  <button type="button" class="button primary" data-open-plan-export>{{ tr('plan.export_pdf') }}</button>
+  <button type="button" class="button primary" data-open-export="plan-export-dialog">{{ tr('plan.export_pdf') }}</button>
 </section>
 <p class="plan-help">↔ {{ tr('plan.zoom_help') }}</p>
 <section class="plan-viewport"><img data-plan-image src="/api/projects/{{ project.id }}/plan.svg?lang={{ lang }}&revision={{ project.revision }}" alt="{{ tr('plan.title') }} · {{ project.name }}"></section>
 
-<dialog data-plan-export-dialog>
-  <form class="dialog-form" data-plan-export-form data-project-id="{{ project.id }}">
+<dialog id="plan-export-dialog" data-export-dialog>
+  <form class="dialog-form" data-export-form data-export-endpoint="/api/projects/{{ project.id }}/plan.pdf" data-export-filename="zipp-plan-project-{{ project.id }}.pdf" data-export-ready-key="plan.export_ready">
     <div>
       <p class="eyebrow">{{ tr('plan.export_pdf') }}</p>
       <h2>{{ tr('plan.export_title') }}</h2>
       <p class="muted">{{ tr('plan.export_help') }}</p>
     </div>
-    <div class="three-columns">
-      <label>{{ tr('plan.page_size') }}
-        <select name="page_size">
-          <option value="A4">A4</option>
-          <option value="A3" selected>A3</option>
-          <option value="A2">A2</option>
-          <option value="A1">A1</option>
-          <option value="A0">A0</option>
-        </select>
-      </label>
-      <label>{{ tr('plan.orientation') }}
-        <select name="orientation">
-          <option value="landscape" selected>{{ tr('plan.landscape') }}</option>
-          <option value="portrait">{{ tr('plan.portrait') }}</option>
-        </select>
-      </label>
-      <label>{{ tr('report.font_size') }}
-        <select name="font_size">
-          <option value="auto" selected>{{ tr('plan.font_auto') }}</option>
-          <option value="7">7 pt</option>
-          <option value="9">9 pt</option>
-          <option value="10">10 pt</option>
-          <option value="12">12 pt</option>
-          <option value="14">14 pt</option>
-        </select>
-      </label>
-    </div>
+    {{ export_options(tr) }}
     <p class="export-note">{{ tr('plan.one_page') }}</p>
-    <p class="export-error" data-plan-export-error role="alert"></p>
+    <p class="export-error" data-export-error role="alert"></p>
     <div class="dialog-actions">
       <button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button>
-      <button type="submit" class="button primary" data-plan-export-submit>{{ tr('report.export_pdf') }}</button>
+      <button type="submit" class="button primary" data-export-submit>{{ tr('report.export_pdf') }}</button>
     </div>
   </form>
 </dialog>

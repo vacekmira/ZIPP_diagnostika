@@ -3,12 +3,18 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 
-from reportlab.lib.pagesizes import A0, A1, A2, A3, A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
 from . import APP_VERSION
 from .domain import bay_code
+from .export_options import (
+    AUTO_FONT_SIZES,
+    FONT_SIZES,
+    PAPER_ORDER,
+    PAPER_SIZES,
+    ExportOptions,
+)
 from .i18n import normalize_language, translator
 from .plan import (
     BAY_DEPTH,
@@ -17,13 +23,6 @@ from .plan import (
     build_plan_geometry,
     register_pdf_fonts,
 )
-
-
-PAPER_SIZES = {"A4": A4, "A3": A3, "A2": A2, "A1": A1, "A0": A0}
-PAPER_ORDER = tuple(PAPER_SIZES)
-ORIENTATIONS = ("landscape", "portrait")
-FONT_SIZES = (7, 9, 10, 12, 14)
-AUTO_FONT_SIZES = (12, 10, 9, 7)
 
 
 class ExportLayoutError(ValueError):
@@ -123,11 +122,11 @@ def _candidate_layout(
 ) -> tuple[PlanPdfLayout | None, list[str]]:
     register_pdf_fonts()
     tr = translator(language)
-    page_width, page_height = (
-        landscape(PAPER_SIZES[paper_size])
-        if orientation == "landscape"
-        else PAPER_SIZES[paper_size]
-    )
+    page_width, page_height = ExportOptions(
+        page_size=paper_size,
+        orientation=orientation,
+        font_size=str(font_size),
+    ).page_dimensions
     base = float(font_size)
     margin = max(18.0, base * 1.55)
     title_size = max(16.0, base * 1.65)
@@ -272,15 +271,13 @@ def resolve_plan_pdf_layout(
     page_size: str = "A3",
     font_size: str = "auto",
     orientation: str = "landscape",
+    options: ExportOptions | None = None,
 ) -> PlanPdfLayout:
     language = normalize_language(language)
-    paper_size = page_size.upper()
-    if paper_size not in PAPER_SIZES:
-        raise ValueError(f"Unsupported paper size: {page_size}")
-    normalized_orientation = orientation.lower()
-    if normalized_orientation not in ORIENTATIONS:
-        raise ValueError(f"Unsupported orientation: {orientation}")
-    requested = str(font_size).lower()
+    options = options or ExportOptions(page_size, orientation, font_size)
+    paper_size = options.page_size
+    normalized_orientation = options.orientation
+    requested = options.font_size
     if requested == "auto":
         collected_reasons: list[str] = []
         for size in AUTO_FONT_SIZES:
@@ -413,11 +410,13 @@ def render_full_plan_pdf(
     page_size: str = "A3",
     font_size: str = "auto",
     orientation: str = "landscape",
+    options: ExportOptions | None = None,
 ) -> bytes:
     language = normalize_language(language)
     tr = translator(language)
     register_pdf_fonts()
-    layout = resolve_plan_pdf_layout(project, language, page_size, font_size, orientation)
+    options = options or ExportOptions(page_size, orientation, font_size)
+    layout = resolve_plan_pdf_layout(project, language, options=options)
     geometry = build_plan_geometry(project)
     output = io.BytesIO()
     pdf = canvas.Canvas(
@@ -425,10 +424,10 @@ def render_full_plan_pdf(
         pagesize=(layout.page_width, layout.page_height),
         pageCompression=1,
     )
-    pdf.setTitle(f'{project["name"]} - {APP_VERSION}')
+    pdf.setTitle(f'{tr("plan.title")} - {project["name"]}')
     pdf.setAuthor("ZIPP Diagnostika")
-    pdf.setSubject(APP_VERSION)
-    pdf.setCreator(f"ZIPP Diagnostika {APP_VERSION}")
+    pdf.setSubject(tr("plan.title"))
+    pdf.setCreator("ZIPP Diagnostika")
 
     title_size = max(16.0, layout.font_size * 1.65)
     title_y = layout.page_height - layout.margin - title_size
@@ -439,7 +438,7 @@ def render_full_plan_pdf(
     subtitle_y = title_y - len(layout.title_lines) * title_size * 1.18 - layout.font_size * 0.2
     pdf.setFillColor("#63706c")
     pdf.setFont("ZippSans", layout.font_size)
-    pdf.drawString(layout.margin, subtitle_y, f'{tr("plan.title")} - {APP_VERSION}')
+    pdf.drawString(layout.margin, subtitle_y, tr("plan.title"))
 
     bay_y: dict[int, tuple[float, float, float]] = {}
     boundaries: dict[int, float] = {}

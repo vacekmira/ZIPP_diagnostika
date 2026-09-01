@@ -1,5 +1,5 @@
 (() => {
-  const scriptVersion = "Alpha 6";
+  const scriptVersion = "Alpha 7";
   if (document.body) document.body.dataset.jsVersion = scriptVersion;
   const storageKey = "zipp.technician";
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -228,66 +228,60 @@
     });
   }
 
-  const exportStorageKey = "zipp.exportFontSize";
-  const exportDialog = $("[data-bay-export-dialog]");
-  const exportButton = $("[data-open-bay-export]");
-  const exportForm = $("[data-bay-export-form]");
-  if (exportButton && exportDialog && exportForm) exportButton.addEventListener("click", () => {
-    const legacyValues = { small: "7", normal: "10", larger: "12", large: "14" };
-    const stored = legacyValues[localStorage.getItem(exportStorageKey)] || localStorage.getItem(exportStorageKey);
-    exportForm.elements.font_size.value = ["auto", "7", "9", "10", "12", "14"].includes(stored) ? stored : "auto";
-    exportDialog.showModal();
-  });
-  if (exportForm) exportForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const fontSize = exportForm.elements.font_size.value;
-    localStorage.setItem(exportStorageKey, fontSize);
-    const submit = $("[data-bay-export-submit]", exportForm);
-    submit.disabled = true;
-    try {
-      await downloadPdf(
-        `/api/bays/${exportForm.dataset.bayId}/report.pdf?lang=${encodeURIComponent(language)}&font_size=${encodeURIComponent(fontSize)}`,
-        `zipp-bay-${exportForm.dataset.bayId}.pdf`,
-      );
-      exportDialog.close();
-      notify(t("report.export_ready"));
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      submit.disabled = false;
-    }
-  });
+  const exportStorageKey = "zipp.exportOptions";
+  const exportDefaults = { page_size: "A3", orientation: "landscape", font_size: "auto" };
+  const validExportValues = {
+    page_size: ["A4", "A3", "A2", "A1", "A0"],
+    orientation: ["landscape", "portrait"],
+    font_size: ["auto", "7", "9", "10", "12", "14"],
+  };
 
-  const planExportStorageKey = "zipp.planExportOptions";
-  const planExportDialog = $("[data-plan-export-dialog]");
-  const planExportButton = $("[data-open-plan-export]");
-  const planExportForm = $("[data-plan-export-form]");
-  if (planExportButton && planExportDialog && planExportForm) planExportButton.addEventListener("click", () => {
+  function storedExportOptions() {
     let stored = {};
-    try { stored = JSON.parse(localStorage.getItem(planExportStorageKey) || "{}"); } catch (_) { /* invalid old preference */ }
-    planExportForm.elements.page_size.value = ["A4", "A3", "A2", "A1", "A0"].includes(stored.page_size) ? stored.page_size : "A3";
-    planExportForm.elements.orientation.value = ["landscape", "portrait"].includes(stored.orientation) ? stored.orientation : "landscape";
-    planExportForm.elements.font_size.value = ["auto", "7", "9", "10", "12", "14"].includes(stored.font_size) ? stored.font_size : "auto";
-    $("[data-plan-export-error]", planExportForm).textContent = "";
-    planExportDialog.showModal();
-  });
-  if (planExportForm) planExportForm.addEventListener("submit", async (event) => {
+    try {
+      stored = JSON.parse(localStorage.getItem(exportStorageKey)
+        || localStorage.getItem("zipp.planExportOptions") || "{}");
+    } catch (_) { /* invalid old preference */ }
+    const legacyFont = { small: "7", normal: "10", larger: "12", large: "14" }[
+      localStorage.getItem("zipp.exportFontSize")
+    ];
+    if (!stored.font_size && legacyFont) stored.font_size = legacyFont;
+    return Object.fromEntries(Object.entries(exportDefaults).map(([key, fallback]) => [
+      key, validExportValues[key].includes(stored[key]) ? stored[key] : fallback,
+    ]));
+  }
+
+  function applyExportOptions(form, options) {
+    Object.entries(options).forEach(([key, value]) => { form.elements[key].value = value; });
+  }
+
+  function readExportOptions(form) {
+    return Object.fromEntries(Object.keys(exportDefaults).map((key) => [key, form.elements[key].value]));
+  }
+
+  $$('[data-open-export]').forEach((button) => button.addEventListener("click", () => {
+    const dialog = document.getElementById(button.dataset.openExport);
+    const form = dialog && $("[data-export-form]", dialog);
+    if (!dialog || !form) return;
+    applyExportOptions(form, storedExportOptions());
+    $("[data-export-error]", form).textContent = "";
+    dialog.showModal();
+  }));
+
+  $$('[data-export-form]').forEach((form) => form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const pageSize = planExportForm.elements.page_size.value;
-    const orientation = planExportForm.elements.orientation.value;
-    const fontSize = planExportForm.elements.font_size.value;
-    const errorNode = $("[data-plan-export-error]", planExportForm);
-    const submit = $("[data-plan-export-submit]", planExportForm);
+    const options = readExportOptions(form);
+    const dialog = form.closest("dialog");
+    const errorNode = $("[data-export-error]", form);
+    const submit = $("[data-export-submit]", form);
     errorNode.textContent = "";
-    localStorage.setItem(planExportStorageKey, JSON.stringify({ page_size: pageSize, orientation, font_size: fontSize }));
+    localStorage.setItem(exportStorageKey, JSON.stringify(options));
     submit.disabled = true;
     try {
-      await downloadPdf(
-        `/api/projects/${planExportForm.dataset.projectId}/plan.pdf?lang=${encodeURIComponent(language)}&page_size=${encodeURIComponent(pageSize)}&orientation=${encodeURIComponent(orientation)}&font_size=${encodeURIComponent(fontSize)}`,
-        `zipp-plan-project-${planExportForm.dataset.projectId}.pdf`,
-      );
-      planExportDialog.close();
-      notify(t("plan.export_ready"));
+      const query = new URLSearchParams({ lang: language, ...options });
+      await downloadPdf(`${form.dataset.exportEndpoint}?${query}`, form.dataset.exportFilename);
+      dialog.close();
+      notify(t(form.dataset.exportReadyKey));
     } catch (error) {
       const recommendations = error.data?.detail?.recommendations || [];
       errorNode.textContent = [error.message, ...recommendations].join("\n");
@@ -295,7 +289,7 @@
     } finally {
       submit.disabled = false;
     }
-  });
+  }));
 
   const initialPlanImage = $("[data-plan-image]");
   if (initialPlanImage) {
