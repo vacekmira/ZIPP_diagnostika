@@ -3,13 +3,14 @@
 {% from "_access.html" import access_layer %}
 {% block title %}{{ tr('plan.title') }} · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><a href="/projects/{{ project.id }}" data-project-name>{{ project.name }}</a><span>/</span><span>{{ tr('plan.title') }}</span></nav>
-<nav class="project-tabs"><a href="/projects/{{ project.id }}">{{ tr('tabs.overview') }}</a><a class="active" href="/projects/{{ project.id }}/plan">{{ tr('tabs.plan') }}</a></nav>
+<nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><a href="/projects/{{ project.id }}{{ mode_query }}" data-project-name>{{ project.name }}</a><span>/</span><span>{{ tr('plan.title') }}</span></nav>
+<nav class="project-tabs"><a href="/projects/{{ project.id }}{{ mode_query }}">{{ tr('tabs.overview') }}</a><a class="active" href="/projects/{{ project.id }}/plan{{ mode_query }}">{{ tr('tabs.plan') }}</a></nav>
 <section class="hero compact">
   <div><p class="eyebrow">{{ tr('plan.title') }}</p><h1 data-project-name>{{ project.name }}</h1><p>{{ tr('plan.description') }}</p></div>
   <button type="button" class="button primary" data-open-export="plan-export-dialog">{{ tr('plan.export_pdf') }}</button>
 </section>
 <p class="plan-help">↔ {{ tr('plan.zoom_help') }}</p>
+<p class="shared-geometry-note">{{ tr('mode.shared_plan') }}</p>
 <form data-plan-layer-form>{{ access_layer(tr) }}</form>
 <section class="plan-viewport"><img data-plan-image src="/api/projects/{{ project.id }}/plan.svg?lang={{ lang }}&revision={{ project.revision }}" alt="{{ tr('plan.title') }} · {{ project.name }}"></section>
 

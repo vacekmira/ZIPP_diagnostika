@@ -44,7 +44,7 @@ if errorlevel 1 goto :error
 python -m app.cli check-schema
 if errorlevel 1 goto :error
 echo.
-echo Instalace Alpha 8 dokoncena. Spustte START.bat.
+echo Instalace Alpha 9 dokoncena. Spustte START.bat.
 pause
 exit /b 0
 :error

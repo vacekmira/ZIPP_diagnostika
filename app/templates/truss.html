@@ -1,1 +1,36 @@
-{% extends "base.html" %}{% block title %}{{ tr('truss') }} {{ truss.label }} · {{ tr('app.name') }}{% endblock %}{% block content %}<nav class="breadcrumbs"><a href="/bays/{{ bay.id }}">{{ bay.name }}</a><span>/</span><span>{{ truss.label }}</span></nav><section class="hero compact"><div><p class="eyebrow">{{ tr('bay.position') }} {{ truss.position }} · {{ tr('truss.internal_id') }} {{ truss.id }}</p><h1>{{ tr('truss') }} {{ truss.label }}</h1><p>{{ tr('type.' ~ truss.type) }}{% if truss.pair_id %} · ⛓ {{ tr('pair') }} {{ truss.pair_id }}{% endif %}</p></div><a class="button secondary" href="/bays/{{ bay.id }}">{{ tr('truss.back') }}</a></section><div class="detail-grid"><section class="panel"><h2>{{ tr('diagnostic.status') }}</h2><div class="status-pair"><span class="{{ 'status-done' if truss.left_done }}">L · {{ tr('state.done') if truss.left_done else tr('state.pending') }}</span><span class="{{ 'status-done' if truss.right_done }}">P · {{ tr('state.done') if truss.right_done else tr('state.pending') }}</span></div>{% if truss.excluded %}<div class="notice danger"><strong>{{ tr('state.excluded') }} · {{ tr('reason.' ~ truss.exclusion_reason) }}</strong><span>{{ truss.exclusion_note or tr('exclude.no_note') }}</span></div><button class="button secondary" data-restore="{{ truss.id }}" data-version="{{ truss.version }}">{{ tr('exclude.restore') }}</button>{% else %}<form data-exclude-form data-truss-id="{{ truss.id }}" data-version="{{ truss.version }}"><label>{{ tr('exclude.reason') }}<select name="reason"><option value="leak">{{ tr('reason.leak') }}</option><option value="crack">{{ tr('reason.crack') }}</option><option value="other">{{ tr('reason.other') }}</option></select></label><label>{{ tr('exclude.note') }}<textarea name="note" rows="3"></textarea></label><button class="button danger">{{ tr('exclude.action') }}</button></form>{% endif %}</section><section class="panel"><h2>{{ tr('audit.history') }}</h2><div class="audit-list">{% for item in audit %}<article><strong>{{ item.technician }}</strong><time datetime="{{ item.created_at }}" data-local-time>{{ item.created_at }}</time><span>{{ item.action }}{% if item.field %} · {{ item.field }}{% endif %}</span></article>{% else %}<p class="muted">{{ tr('audit.empty') }}</p>{% endfor %}</div></section></div>{% endblock %}
+{% extends "base.html" %}
+{% from "_access.html" import access_editor, access_note_dialog %}
+{% block title %}{{ tr('truss') }} {{ truss.label }} · {{ tr('app.name') }}{% endblock %}
+{% block content %}
+<nav class="breadcrumbs"><a href="/bays/{{ bay.id }}{{ mode_query }}">{{ bay.name }}</a><span>/</span><span data-truss-detail-label="{{ truss.id }}">{{ truss.label }}</span></nav>
+<section class="hero compact"><div><p class="eyebrow">{{ tr('bay.position') }} {{ truss.position }} · {{ tr('truss.internal_id') }} {{ truss.id }}</p><h1>{{ tr('truss') }} <span data-truss-detail-label="{{ truss.id }}">{{ truss.label }}</span></h1><p><span data-truss-detail-type="{{ truss.id }}">{{ tr('type.' ~ truss.type) }}</span>{% if truss.pair_id %} · ⛓ {{ tr('pair') }} {{ truss.pair_id }}{% endif %}</p></div><a class="button secondary" href="/bays/{{ bay.id }}{{ mode_query }}">{{ tr('truss.back') }}</a></section>
+{% if project.archived %}<div class="notice warning">{{ tr('bay.archived_notice') }}</div>{% endif %}
+<div class="detail-grid {{ 'survey-detail' if mode == 'survey' }}" data-bay-id="{{ bay.id }}">
+  {% if mode == 'survey' %}
+  <section class="panel">
+    <h2>{{ tr('access.title') }}</h2><p>{{ tr('access.help') }}</p>
+    <div class="access-legend">{% for method in ['N','K','Ž','L','J'] %}<span><b>{{ method }}</b> {{ tr('access.' ~ method) }}</span>{% endfor %}</div>
+    <div class="survey-truss-editor" data-truss-id="{{ truss.id }}" data-version="{{ truss.version }}">
+      <strong data-label>{{ truss.label }}</strong>
+      {{ access_editor(tr, truss, project.archived) }}
+    </div>
+  </section>
+  {% else %}
+  <section class="panel"><h2>{{ tr('diagnostic.status') }}</h2>
+    <div class="status-pair"><span class="{{ 'status-done' if truss.left_done }}">L · {{ tr('state.done') if truss.left_done else tr('state.pending') }}</span><span class="{{ 'status-done' if truss.right_done }}">P · {{ tr('state.done') if truss.right_done else tr('state.pending') }}</span></div>
+    {% if truss.excluded %}
+    <div class="notice danger"><strong>{{ tr('state.excluded') }} · {{ tr('reason.' ~ truss.exclusion_reason) }}</strong><span>{{ truss.exclusion_note or tr('exclude.no_note') }}</span></div>
+    <button class="button secondary" data-restore="{{ truss.id }}" data-version="{{ truss.version }}" {{ 'disabled' if project.archived }}>{{ tr('exclude.restore') }}</button>
+    {% else %}
+    <form data-exclude-form data-truss-id="{{ truss.id }}" data-version="{{ truss.version }}">
+      <label>{{ tr('exclude.reason') }}<select name="reason" {{ 'disabled' if project.archived }}><option value="leak">{{ tr('reason.leak') }}</option><option value="crack">{{ tr('reason.crack') }}</option><option value="other">{{ tr('reason.other') }}</option></select></label>
+      <label>{{ tr('exclude.note') }}<textarea name="note" rows="3" {{ 'disabled' if project.archived }}></textarea></label>
+      <button class="button danger" {{ 'disabled' if project.archived }}>{{ tr('exclude.action') }}</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+  <section class="panel"><h2>{{ tr('audit.history') }} · {{ tr('mode.' ~ mode) }}</h2><div class="audit-list">{% for item in audit %}<article><strong>{{ item.technician }}</strong><time datetime="{{ item.created_at }}" data-local-time>{{ item.created_at }}</time><span>{{ item.action }}{% if item.field %} · {{ item.field }}{% endif %}</span></article>{% else %}<p class="muted">{{ tr('audit.empty') }}</p>{% endfor %}</div></section>
+</div>
+{% if mode == 'survey' %}{{ access_note_dialog(tr) }}{% endif %}
+{% endblock %}

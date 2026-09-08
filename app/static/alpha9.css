@@ -34,6 +34,18 @@
 .export-note{margin:0;color:var(--muted);font-size:.84rem}
 .three-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 [hidden]{display:none!important}
+[data-work-mode=survey] .access-truss-list .truss-row{grid-template-columns:minmax(0,1fr) 44px}
+.work-mode-bar{margin:0 0 26px;position:sticky;top:70px;z-index:9;background:var(--paper);padding:10px 0 8px;border-bottom:1px solid var(--line)}
+.work-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:660px}
+.work-mode-tabs a{min-height:56px;display:flex;align-items:center;justify-content:center;padding:12px;border:2px solid #afc3b9;border-radius:12px;text-decoration:none;color:var(--green);background:#fff;font-weight:800;font-size:1.08rem}
+.work-mode-tabs a.active{color:#fff;background:var(--green);border-color:var(--green)}
+[data-work-mode=survey] .work-mode-tabs a.active{background:#80561d;border-color:#80561d}
+.work-mode-tabs a:focus-visible{outline:3px solid #589e89;outline-offset:3px}
+.work-mode-help{margin:10px 0 0;color:var(--muted);font-size:.86rem;line-height:1.45}
+.work-mode-help strong{color:var(--ink)}.shared-geometry-note{padding:14px;border-left:4px solid #94ae9d;background:#eaf0e9;color:#34463e;line-height:1.5}
+.survey-detail{grid-template-columns:1fr}.survey-truss-editor{margin-top:20px}.survey-truss-editor .truss-access{margin-top:12px}
+[data-work-mode=survey] .bulk-toolbar{top:195px}
+@media(max-width:760px){.work-mode-bar{top:64px}.work-mode-tabs{gap:8px}.work-mode-tabs a{min-height:54px;font-size:1rem}.work-mode-help{font-size:.78rem}.breadcrumbs{flex-wrap:wrap}[data-work-mode=survey] .bulk-toolbar{top:195px}}
 .height-form{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:22px}
 .height-form label{flex:1;min-width:160px;max-width:360px;display:grid;gap:8px}
 .height-help{flex-basis:100%;margin:0;color:var(--muted)}
@@ -59,3 +71,5 @@
 @media(max-width:760px){.three-columns{grid-template-columns:1fr}.project-actions,.bay-actions{width:100%;justify-content:stretch}.project-actions .button,.bay-actions .button{flex:1}.project-title-row{align-items:center}.icon-button{flex-basis:46px;width:46px;height:46px}}
 @media(max-width:560px){.topbar .technician-pill{max-width:120px;font-size:.75rem}.login-language{display:flex}.login-card{padding:25px}.project-tabs a{flex:1;text-align:center}.plan-viewport{margin-left:-12px;margin-right:-12px;border-radius:0;border-left:0;border-right:0}.project-title-row{width:100%}.project-title-row h1{min-width:0;overflow-wrap:anywhere}.project-actions,.bay-actions{flex-direction:column}.project-actions .button,.bay-actions .button{width:100%}}
 @media(max-width:380px){.dialog-form{padding:16px}.access-side{gap:3px;grid-template-columns:16px repeat(5,minmax(44px,1fr))}}
+.work-mode-bar{top:var(--topbar-height,70px)}
+[data-work-mode=survey] .bulk-toolbar{top:calc(var(--topbar-height,70px) + var(--work-mode-height,120px) + 8px)}

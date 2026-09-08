@@ -63,7 +63,12 @@ logger = logging.getLogger("uvicorn.error")
 
 def template_context(request: Request, **values) -> dict:
     language = request_language(request)
-    return {"lang": language, "tr": translator(language), "i18n_json": catalog_json(), **values}
+    # A view preference only: both modes load the same persisted geometry.
+    mode = request.query_params.get("mode", "diagnostics")
+    if mode not in {"diagnostics", "survey"}:
+        raise HTTPException(422, "Neznámý pracovní režim.")
+    return {"lang": language, "tr": translator(language), "i18n_json": catalog_json(),
+            "mode": mode, "mode_query": "?mode=survey" if mode == "survey" else "", **values}
 
 
 def safe_next(value: str | None) -> str:
@@ -184,8 +189,12 @@ def truss_page(request: Request, truss_id: int, db=Depends(get_db), _auth=Depend
     ))
     if not truss:
         raise HTTPException(404, "Vazník nebyl nalezen.")
-    logs = db.scalars(select(AuditLog).where(AuditLog.truss_id == truss.id)
-                      .order_by(AuditLog.id.desc()).limit(100)).all()
+    log_query = select(AuditLog).where(AuditLog.truss_id == truss.id)
+    if request.query_params.get("mode") == "survey":
+        log_query = log_query.where(AuditLog.action == "truss.access.changed")
+    else:
+        log_query = log_query.where(AuditLog.action != "truss.access.changed")
+    logs = db.scalars(log_query.order_by(AuditLog.id.desc()).limit(100)).all()
     data = truss_dict(truss)
     bay = {"id": truss.bay.id, "name": truss.bay.name, "project_id": truss.bay.project_id}
     tr = translator(request_language(request))
@@ -193,7 +202,8 @@ def truss_page(request: Request, truss_id: int, db=Depends(get_db), _auth=Depend
               "field": tr(f"audit.field.{log.field}") if log.field else None,
               "old": log.old_value, "new": log.new_value, "created_at": utc_iso(log.created_at)} for log in logs]
     return templates.TemplateResponse(request, "truss.html", template_context(
-        request, truss=data, bay=bay, audit=audit, project={"id": bay["project_id"]}
+        request, truss=data, bay=bay, audit=audit,
+        project={"id": bay["project_id"], "archived": truss.bay.project.archived}
     ))
 
 

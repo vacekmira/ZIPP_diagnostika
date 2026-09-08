@@ -30,7 +30,7 @@
       <label>{{ tr('project.truss_count') }}<input name="default_truss_count" type="number" min="1" max="500" value="24" required></label>
     </div>
     <label>{{ tr('project.note') }}<textarea name="note" rows="3" maxlength="4000"></textarea></label>
-    <label>{{ tr('height.project') }}<input name="default_height_m" inputmode="decimal" placeholder="{{ tr('height.optional') }}"></label>
+    <p class="muted">{{ tr('mode.create_help') }}</p>
     <div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button><button type="submit" class="button primary">{{ tr('project.create_submit') }}</button></div>
   </form>
 </dialog>

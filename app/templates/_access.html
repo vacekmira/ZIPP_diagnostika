@@ -6,6 +6,24 @@
   {% endfor %}
 </div>
 {%- endmacro %}
+{% macro access_editor(tr, truss, disabled=false) -%}
+<div class="truss-access">
+  {{ access_buttons(tr, 'left', truss.left_access, disabled) }}
+  {{ access_buttons(tr, 'right', truss.right_access, disabled) }}
+  <p data-access-note>{{ truss.access_note or '' }}</p>
+  <button type="button" class="button secondary" data-edit-access-note {{ 'disabled' if disabled }}>{{ tr('access.edit_note') }}</button>
+</div>
+{%- endmacro %}
+{% macro access_note_dialog(tr) -%}
+<dialog data-access-note-dialog>
+  <form class="dialog-form" data-access-note-form>
+    <h2>{{ tr('access.note') }} - <span data-note-label></span></h2>
+    <label>{{ tr('access.note') }}<textarea name="note" rows="5" maxlength="2000"></textarea></label>
+    <p data-note-error class="export-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button><button class="button primary">{{ tr('save') }}</button></div>
+  </form>
+</dialog>
+{%- endmacro %}
 {% macro access_layer(tr) -%}
 <fieldset class="access-layer"><legend>{{ tr('access.title') }}</legend>
   <div class="touch-options">

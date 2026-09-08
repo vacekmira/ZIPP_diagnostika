@@ -1,11 +1,12 @@
-# ZIPP Diagnostika - Alpha 8
+# ZIPP Diagnostika - Alpha 9
 
 ZIPP Diagnostika je lokální webová aplikace pro evidenci diagnostiky betonových dodatečně předpínaných ZIPP vazníků. Funguje bez internetového připojení na Windows 11 i Raspberry Pi; pro vzdálený provoz lze použít vlastní doménu a Cloudflare Tunnel.
 
-Aktuální vydání: **Alpha 8**
+Aktuální vydání: **Alpha 9**
 
 ## Hlavní funkce
 
+- dva jasně oddělené pracovní režimy **Diagnostika / Obhlídka** nad stejnou zakázkou, loděmi a vazníky,
 - zakázky, lodě a vazníky s oddělenými hodnotami `id / position / label`,
 - diagnostika levé a pravé strany,
 - výchozí výška zakázky s možností vlastní výšky jednotlivých lodí,
@@ -72,7 +73,7 @@ Samostatné skripty jsou v `scripts/raspberry/`:
 - `backup_raspberry_docker.sh`,
 - `change_password_raspberry.sh`.
 
-Compose používá image `zipp-diagnostics:alpha8`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
+Compose používá image `zipp-diagnostics:alpha9`, persistentní databázový svazek, health check a automatický restart. PDF vzniká lokálně bez cloudové služby a bez závislosti na systémových fontech.
 
 ## Cloudflare Tunnel
 
@@ -98,7 +99,7 @@ Windows i Raspberry Pi update vždy:
 6. spustí health check,
 7. ponechá databázi i backup při selhání.
 
-Alpha 8 používá aditivní migraci `0005_alpha8`: výchozí výška zakázky, vlastní výška lodě a samostatné přístupy L/P s poznámkou. Nová pole jsou prázdná a stávající záznamy zůstávají zachované. Použijte stávající aktualizační skript, který před migrací vytvoří zálohu. Historické migrace přidávají:
+Alpha 9 nemění databázové schéma: rozděluje pouze pracovní obrazovky. Aktuální revize databáze zůstává `0005_alpha8`, která zavedla výšky a přístupy. Stávající hodnoty, labely, ID i historie zůstávají beze změny; nevytváří se kopie lodí ani vazníků. Při upgradu použijte stávající aktualizační skript se zálohou. Historické migrace přidávají:
 
 - Alpha 3 metadata `single_v` bez změny existujících labelů,
 - FK-free `project_deletion_logs` pro minimální stopu trvalého smazání.
@@ -116,6 +117,12 @@ Archivace je vratná a data zachová. Trvalé smazání je samostatná operace:
 - oznámí smazání ostatním klientům přes stávající realtime spojení.
 
 ## Výška a přístupy
+
+Na detailu zakázky a jejích lodí přepínejte dvěma velkými záložkami **Diagnostika / Obhlídka**. Aktivní režim je výrazně označený a přepínač zůstává při posouvání dostupný. Režim je součástí URL (`?mode=survey` pro Obhlídku), takže se zachová při přechodu do lodě, nastavení, detailu vazníku, návratu i obnovení stránky. Starší odkazy bez parametru otevírají Diagnostiku. Dvě okna mohou nezávisle pracovat v různých režimech.
+
+**Diagnostika** zobrazuje pouze provedení L/P, vyřazení a jeho důvody/poznámky a diagnostickou historii. **Obhlídka** zobrazuje výšky, přístupy, poznámky k přístupu, hromadné nastavení a historii přístupů. Diagnostické stavy se v zadávání Obhlídky nezobrazují; ani vyřazený vazník se z Obhlídky neztratí.
+
+**Nastavení lodě je společná geometrie.** Počet, označení, typy a explicitní dilatační dvojice mají jediný zdroj dat. Jejich změny se projeví v obou režimech. Přepnutí režimu žádná data nemění. Půdorys a exporty zůstávají společné a funkčně stejné; vrstva přístupů se nadále zapíná zvlášť, nezávisle na pracovním režimu.
 
 Výška se zadává v metrech (např. `8,5`). Zakázka má volitelnou výchozí výšku; prázdná výška lodě ji přebírá. Vlastní hodnotu upravíte přímo na stránce lodě. Vymazáním hodnoty obnovíte dědění.
 
@@ -157,8 +164,8 @@ $env:STABILITY_SECONDS="30"
 
 Produkční desetiminutový víceklientový test ponechte s výchozím `STABILITY_SECONDS=600`.
 
-Praktický browserový scénář je v `tests/browser_alpha8.mjs` (Playwright/Edge, samostatný testovací server a databáze). Ověřuje telefon 390 × 844, tablet 820 × 1180, hromadné nastavení, poznámku, realtime a šest exportů přes skutečné dialogy. Cesty k Playwrightu a Edge upravte podle svého PC. Nikdy jej nespouštějte nad produkční databází: vytváří a maže vlastní testovací zakázku.
+Praktický browserový scénář je v `tests/browser_alpha9.mjs` (Playwright/Edge, samostatný testovací server a databáze). Ověřuje telefon 390 × 844, tablet 820 × 1180, přepínání režimů, totožnou geometrii, nezávislost pracovních dat, sdílenou změnu labelu/počtu, hromadné nastavení, poznámku, realtime a šest exportů přes skutečné dialogy obou režimů. Cesty k Playwrightu a Edge upravte podle svého PC. Nikdy jej nespouštějte nad produkční databází: vytváří a maže vlastní testovací zakázku.
 
-Stažená PDF kontroluje `python tests/verify_alpha8_qa.py`: formát, počet stran, přístupová vrstva, CZ/SK, verze jen v zápatí i fyzická velikost labelů. `python -m tests.render_alpha8_qa` vytváří doplňkovou CZ/SK matici se štítovými, vyřazenými a dilatačními vazníky. PDF je nutné také vyrenderovat a vizuálně projít.
+Stažená PDF kontroluje `python tests/verify_alpha9_qa.py`: formát, počet stran, přístupová vrstva, CZ/SK, verze jen v zápatí i fyzická velikost labelů. `python -m tests.render_alpha9_qa` vytváří doplňkovou CZ/SK matici se štítovými, vyřazenými a dilatačními vazníky. PDF je nutné také vyrenderovat a vizuálně projít.
 
-Verze aplikace se v PDF uvádí pouze v zápatí. Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 8**.
+Verze aplikace se v PDF uvádí pouze v zápatí. Health endpoint `/health` vrací stav databáze a aktuální označení **Alpha 9**.

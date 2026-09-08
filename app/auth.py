@@ -43,7 +43,7 @@ def require_api_auth(request: Request, db: Session = Depends(get_db)) -> None:
 
 def require_page_auth(request: Request, db: Session = Depends(get_db)) -> None:
     if not is_authenticated(request.session, db):
-        target = quote(str(request.url.path), safe="/")
+        target = quote(request.url.path + (f"?{request.url.query}" if request.url.query else ""), safe="/")
         raise HTTPException(303, headers={"Location": f"/login?next={target}"})
 
 

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#123a32">
   <title>{% block title %}{{ tr('app.name') }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/static/alpha8.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/alpha9.css?v={{ asset_version }}">
   <script>
     window.ZIPP_I18N={{ i18n_json|safe }};
     window.ZIPP_LANG={{ lang|tojson }};
@@ -14,7 +14,7 @@
   </script>
   <script src="/static/app.js?v={{ asset_version }}" defer></script>
 </head>
-<body data-project-id="{{ project.id if project is defined else '' }}" data-app-version="{{ version }}">
+<body data-project-id="{{ project.id if project is defined else '' }}" data-app-version="{{ version }}" data-work-mode="{{ mode }}">
   <header class="topbar">
     <a class="brand" href="/">ZIPP <span>Diagnostika</span></a>
     <div class="topbar-actions">
@@ -28,6 +28,7 @@
     </div>
   </header>
   <main class="shell">
+    {% if project is defined %}{% include "_work_modes.html" %}{% endif %}
     {% block content %}{% endblock %}
     <footer class="footer">{{ tr('app.name') }} · {{ version }}</footer>
   </main>

@@ -1,4 +1,4 @@
-"""Check actual PDFs downloaded by browser_alpha8.mjs (render separately)."""
+"""Check actual PDFs downloaded by browser_alpha9.mjs (render separately)."""
 import json
 import math
 from pathlib import Path
@@ -21,7 +21,7 @@ CASES = (
 def main():
     results = []
     for name, dimensions, show_access, font_size in CASES:
-        path = ROOT / 'tmp' / 'browser-alpha8' / f'alpha8-browser-{name}.pdf'
+        path = ROOT / 'tmp' / 'browser-alpha9' / f'alpha9-browser-{name}.pdf'
         reader = PdfReader(path)
         if name.startswith('plan'):
             assert len(reader.pages) == 1, name
@@ -33,17 +33,17 @@ def main():
             footer_y = []
 
             def visit(text, cm, tm, font, size):
-                if 'Alpha 8' in text:
+                if 'Alpha 9' in text:
                     footer_y.append(tm[4] * cm[1] + tm[5] * cm[3] + cm[5])
                 if text.strip() == 'A1' and abs(cm[1]) > 0.01:
                     label_sizes.append(size * math.hypot(cm[2], cm[3]))
 
             text = page.extract_text(visitor_text=visit)
-            assert text.count('Alpha 8') == 1, name
+            assert text.count('Alpha 9') == 1, name
             assert len(footer_y) == 1 and 0 <= footer_y[0] < 35, (name, footer_y)
             assert not any(char in text for char in ('■', '\ufffd', '\x00')), name
             all_text += '\n' + text
-        assert 'Alpha 8' not in str(reader.metadata), name
+        assert 'Alpha 9' not in str(reader.metadata), name
         assert 'Hala Žďár – zkouška' in all_text, name
         assert 'Běžný' in all_text and 'Dilatační' in all_text, name
         assert ('Přístupy - legenda' in all_text) == show_access, name

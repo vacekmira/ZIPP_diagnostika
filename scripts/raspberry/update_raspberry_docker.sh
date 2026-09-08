@@ -25,7 +25,7 @@ fi
 for _ in $(seq 1 60); do
   if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
     compose exec -T app python -c "import sqlite3; from app.config import get_settings; c=sqlite3.connect(get_settings().database_path); assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'; print('Databáze: ok')"
-    echo "Aktualizace Alpha 8 dokončena."
+    echo "Aktualizace Alpha 9 dokončena."
     exit 0
   fi
   sleep 1

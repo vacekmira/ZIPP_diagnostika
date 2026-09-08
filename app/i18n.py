@@ -179,6 +179,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
 
 TRANSLATIONS["cs"].update({
+    "mode.choose": "Pracovní režim", "mode.current": "Pracujete v režimu",
+    "mode.diagnostics": "Diagnostika", "mode.survey": "Obhlídka",
+    "mode.diagnostics.help": "Provedení L/P a vyřazení vazníků.",
+    "mode.survey.help": "Výšky, přístupy L/P a poznámky.",
+    "mode.trusses": "vazníků",
+    "mode.shared_geometry": "Společná geometrie: změny lodí, počtů, označení, typů a dvojic platí pro Diagnostiku i Obhlídku.",
+    "mode.shared_plan": "Společný půdorys a exporty jsou v obou režimech stejné. Zobrazení přístupů volíte samostatně.",
+    "mode.create_help": "Výšky a přístupy následně zadáte v režimu Obhlídka.",
     "height.label": "Výška", "height.project": "Výchozí výška haly (m)",
     "height.bay": "Vlastní výška lodě (m)", "height.inherit": "Prázdné pole přebírá výšku zakázky.",
     "height.optional": "Volitelné, např. 8,5", "height.saved": "Výška uložena",
@@ -198,6 +206,14 @@ TRANSLATIONS["cs"].update({
     "audit.field.default_height_m": "Výchozí výška haly",
 })
 TRANSLATIONS["sk"].update({
+    "mode.choose": "Pracovný režim", "mode.current": "Pracujete v režime",
+    "mode.diagnostics": "Diagnostika", "mode.survey": "Obhliadka",
+    "mode.diagnostics.help": "Vykonanie L/P a vyradenie väzníkov.",
+    "mode.survey.help": "Výšky, prístupy L/P a poznámky.",
+    "mode.trusses": "väzníkov",
+    "mode.shared_geometry": "Spoločná geometria: zmeny lodí, počtov, označení, typov a dvojíc platia pre Diagnostiku aj Obhliadku.",
+    "mode.shared_plan": "Spoločný pôdorys a exporty sú v oboch režimoch rovnaké. Zobrazenie prístupov volíte samostatne.",
+    "mode.create_help": "Výšky a prístupy následne zadáte v režime Obhliadka.",
     "height.label": "Výška", "height.project": "Predvolená výška haly (m)",
     "height.bay": "Vlastná výška lode (m)", "height.inherit": "Prázdne pole preberá výšku zákazky.",
     "height.optional": "Voliteľné, napr. 8,5", "height.saved": "Výška uložená",

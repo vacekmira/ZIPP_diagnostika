@@ -9,7 +9,7 @@ from app.plan import render_plan_pdf
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "tmp" / "pdfs" / "alpha8-matrix"
+MATRIX = ROOT / "tmp" / "pdfs" / "alpha9-matrix"
 FINAL = ROOT / "output" / "pdf"
 
 
@@ -77,7 +77,7 @@ def reference_project() -> dict:
         "id": 1,
         "name": "Hala Žďár – zkouška",
         "default_height_m": 8.5,
-        "note": "Česká a slovenská vizuální matice Alpha 8.",
+        "note": "Česká a slovenská vizuální matice Alpha 9.",
         "archived": False,
         "revision": 5,
         "progress": progress([truss for bay in bays for truss in bay["trusses"]]),
@@ -99,7 +99,7 @@ def main() -> None:
         data = render_plan_pdf(project, "cs", options=options)
         (MATRIX / filename).write_bytes(data)
         if filename == "full-A2-portrait-14.pdf":
-            (FINAL / "zipp-alpha8-reference-A2-portrait-14.pdf").write_bytes(data)
+            (FINAL / "zipp-alpha9-reference-A2-portrait-14.pdf").write_bytes(data)
     created_at = datetime(2026, 9, 8, 10, 30).astimezone()
     (MATRIX / "bay-A4-landscape-7pt-cs.pdf").write_bytes(
         render_bay_report_pdf(

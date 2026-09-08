@@ -1,10 +1,21 @@
 (() => {
-  const scriptVersion = "Alpha 8";
+  const scriptVersion = "Alpha 9";
   if (document.body) document.body.dataset.jsVersion = scriptVersion;
   const storageKey = "zipp.technician";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const toast = $("[data-toast]");
+  const surveyMode = document.body.dataset.workMode === 'survey';
+  const workModeBar = $('.work-mode-bar');
+  if (workModeBar) {
+    const updateStickyOffsets = () => {
+      document.documentElement.style.setProperty('--topbar-height', `${$('.topbar').getBoundingClientRect().height}px`);
+      document.documentElement.style.setProperty('--work-mode-height', `${workModeBar.getBoundingClientRect().height}px`);
+    };
+    const stickyObserver = new ResizeObserver(updateStickyOffsets);
+    stickyObserver.observe($('.topbar')); stickyObserver.observe(workModeBar);
+    updateStickyOffsets();
+  }
   let technician = localStorage.getItem(storageKey) || "";
   const storedLanguage = localStorage.getItem("zipp.language");
   let language = ["cs", "sk"].includes(storedLanguage) ? storedLanguage : (window.ZIPP_LANG || "cs");
@@ -332,9 +343,13 @@
   }
 
   function updateTruss(data) {
+    $$(`[data-truss-detail-label="${data.id}"]`).forEach(node => { node.textContent = data.label; });
+    $$(`[data-truss-detail-type="${data.id}"]`).forEach(node => { node.textContent = t(`type.${data.type}`); });
     const row = $(`[data-truss-id="${data.id}"]`);
     if (!row) return;
     row.dataset.version = data.version;
+    row.dataset.trussType = data.type;
+    row.dataset.pairId = data.pair_id || '';
     const label = $("[data-label]", row);
     const type = $("[data-type]", row);
     if (label) label.textContent = data.label;
@@ -348,6 +363,8 @@
     });
     const note = $('[data-access-note]', row);
     if (note) note.textContent = data.access_note || '';
+    const select = $('[data-select-truss]', row);
+    if (select) select.textContent = `${t('access.select_truss')} ${data.label}`;
   }
 
   $$('[data-side]').forEach((button) => button.addEventListener("click", async () => {
@@ -674,7 +691,9 @@
       if (["project.archived", "project.reactivated"].includes(message.type)) {
         clearTimeout(reloadTimer); reloadTimer = setTimeout(() => location.reload(), 300);
       }
-      if (!planImage && ["bay.resized", "dilation_pair.created", "dilation_pair.removed", "truss.excluded", "truss.restored"].includes(message.type)) {
+      const structureChanged = ["bay.resized", "bay.updated", "dilation_pair.created", "dilation_pair.removed"].includes(message.type);
+      const diagnosticVisibilityChanged = !surveyMode && ["truss.excluded", "truss.restored"].includes(message.type);
+      if (!planImage && (structureChanged || diagnosticVisibilityChanged)) {
         clearTimeout(reloadTimer); reloadTimer = setTimeout(() => location.reload(), 600);
       }
       if (planImage && message.type !== "connected") {
@@ -685,7 +704,7 @@
     };
     socket.onclose = (event) => {
       clearInterval(heartbeatTimer); clearTimeout(pongTimer);
-      if (event.code === 4401) { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; return; }
+      if (event.code === 4401) { location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`; return; }
       if (intentionalClose) return;
       connectionState("offline", t("connection.offline"));
       clearTimeout(reconnectTimer);

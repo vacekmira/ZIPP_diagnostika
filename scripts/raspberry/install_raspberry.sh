@@ -24,4 +24,4 @@ systemctl daemon-reload
 systemctl enable --now zipp-diagnostics
 sleep 2
 curl --fail http://127.0.0.1:8000/health
-echo "Instalace Alpha 8 dokončena. Stav: systemctl status zipp-diagnostics"
+echo "Instalace Alpha 9 dokončena. Stav: systemctl status zipp-diagnostics"

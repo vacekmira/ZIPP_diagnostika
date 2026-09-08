@@ -3,6 +3,7 @@ import math
 from pypdf import PdfReader
 from sqlalchemy import select
 
+from app import APP_VERSION
 from app.models import AuditLog
 
 
@@ -149,7 +150,7 @@ def test_access_layers_in_svg_and_both_pdf_exports(client):
             if kind == 'bay':
                 assert ('Unikátní poznámka' in text) == enabled
             for page in reader.pages:
-                assert page.extract_text().count('Alpha 8') == 1
+                assert page.extract_text().count(APP_VERSION) == 1
 
 
 def test_resize_warns_before_hiding_access_data(client):

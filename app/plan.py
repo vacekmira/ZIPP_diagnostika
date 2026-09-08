@@ -433,7 +433,7 @@ def _force_embedded_unicode_fonts(node, seen: set[int] | None = None) -> None:
 
 
 def _pdf_projects(project: dict) -> list[dict]:
-    """Compatibility helper: Alpha 8 never splits a full-project export."""
+    """Compatibility helper: a full-project export is never split."""
     return [project]
 
 

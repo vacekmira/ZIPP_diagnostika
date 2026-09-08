@@ -1,0 +1,8 @@
+<section class="work-mode-bar" aria-label="{{ tr('mode.choose') }}">
+  <nav class="work-mode-tabs" aria-label="{{ tr('mode.choose') }}">
+    {% for value in ['diagnostics', 'survey'] %}
+    <a href="{{ request.url.path }}?mode={{ value }}" data-work-mode-link="{{ value }}" class="{{ 'active' if mode == value }}" {% if mode == value %}aria-current="page"{% endif %}>{{ tr('mode.' ~ value) }}</a>
+    {% endfor %}
+  </nav>
+  <p class="work-mode-help"><strong>{{ tr('mode.current') }}: {{ tr('mode.' ~ mode) }}</strong> · {{ tr('mode.' ~ mode ~ '.help') }}</p>
+</section>

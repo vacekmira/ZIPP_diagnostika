@@ -3,8 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const base = process.env.ZIPP_E2E_URL || "http://127.0.0.1:8765";
-const password = process.env.ZIPP_E2E_PASSWORD || "Alpha8-test!";
-const output = path.resolve("tmp/browser-alpha8");
+const password = process.env.ZIPP_E2E_PASSWORD || "Alpha9-test!";
+const output = path.resolve("tmp/browser-alpha9");
 await fs.mkdir(output, { recursive: true });
 
 function check(condition, message) {
@@ -20,7 +20,7 @@ async function login(page) {
       page.locator('button[type="submit"]').click(),
     ]);
   }
-  await page.waitForSelector('body[data-app-version="Alpha 8"][data-js-version="Alpha 8"]');
+  await page.waitForSelector('body[data-app-version="Alpha 9"][data-js-version="Alpha 9"]');
 }
 
 async function createProject(page, name, bays, trusses) {
@@ -30,7 +30,7 @@ async function createProject(page, name, bays, trusses) {
   await form.locator('[name="name"]').fill(name);
   await form.locator('[name="bay_count"]').fill(String(bays));
   await form.locator('[name="default_truss_count"]').fill(String(trusses));
-  await form.locator('[name="note"]').fill("Příliš žluťoučký kůň a slovenský kôň – Alpha 8 E2E.");
+  await form.locator('[name="note"]').fill("Příliš žluťoučký kůň a slovenský kôň – Alpha 9 E2E.");
   await Promise.all([
     page.waitForURL(/\/projects\/\d+$/),
     form.locator('button[type="submit"]').click(),
@@ -51,6 +51,21 @@ async function savePdfDownload(page, clickTarget, filename) {
   return { filename: download.suggestedFilename(), path: destination, bytes: data.length };
 }
 
+async function mode(page, value) {
+  await page.locator(`[data-work-mode-link="${value}"]`).click();
+  await page.waitForSelector(`body[data-work-mode="${value}"]`);
+  await page.waitForSelector('[data-connection][data-state="online"]');
+  const box = await page.locator(`[data-work-mode-link="${value}"]`).boundingBox();
+  check(box.width >= 110 && box.height >= 48, 'Mode tabs are too small');
+}
+
+async function geometry(page) {
+  return page.locator('article[data-truss-id]').evaluateAll(nodes => nodes.map(node => ({
+    id: node.dataset.trussId, position: node.dataset.position, type: node.dataset.trussType,
+    pair: node.dataset.pairId, label: node.querySelector('[data-label]').textContent,
+  })));
+}
+
 const browser = await chromium.launch({
   executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
   headless: true,
@@ -59,7 +74,7 @@ const contextA = await browser.newContext({ acceptDownloads: true, viewport: { w
 const contextB = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 900 } });
 for (const context of [contextA, contextB]) {
   await context.addInitScript(() => {
-    localStorage.setItem("zipp.technician", "Alpha 8 browser tester");
+    localStorage.setItem("zipp.technician", "Alpha 9 browser tester");
     localStorage.setItem("zipp.language", "cs");
   });
 }
@@ -78,7 +93,7 @@ try {
   await login(pageA);
   await login(pageB);
 
-  const projectId = await createProject(pageA, "Hala Alpha 8 E2E", 3, 24);
+  const projectId = await createProject(pageA, "Hala Alpha 9 E2E", 3, 24);
   await pageB.goto(`${base}/projects/${projectId}`);
   await pageA.waitForSelector('[data-connection][data-state="online"]');
   await pageB.waitForSelector('[data-connection][data-state="online"]');
@@ -94,6 +109,11 @@ try {
   await pageA.reload();
   check((await pageA.locator("h1[data-project-name]").textContent()) === "Hala Žďár – zkouška", "Rename did not persist after reload");
 
+  check(await pageA.locator('[data-height-form]').count() === 0, 'Height editor leaked into diagnostics');
+  const diagnosticBayIds = await pageA.locator('[data-bay-card-id]').evaluateAll(nodes => nodes.map(node => node.dataset.bayCardId));
+  await mode(pageA, 'survey');
+  check(JSON.stringify(await pageA.locator('[data-bay-card-id]').evaluateAll(nodes => nodes.map(node => node.dataset.bayCardId))) === JSON.stringify(diagnosticBayIds), 'Modes use different bays');
+  check(await pageA.locator('.summary-card').count() === 0, 'Diagnostic summary leaked into survey');
   await pageA.locator('[data-height-form] input').fill('8,5');
   const [projectHeight] = await Promise.all([
     pageA.waitForResponse(response => response.url().endsWith(`/api/projects/${projectId}/height`) && response.request().method() === 'PUT'),
@@ -136,23 +156,77 @@ try {
   await pageA.locator('[data-open-bulk]').click();
   await pageA.locator('[data-bulk-method="N"][data-access-side="left"]').click();
   await pageA.locator('[data-bulk-method="J"][data-access-side="right"]').click();
-  await pageA.screenshot({path:path.join(output,'alpha8-mobile-bulk.png')});
+  await pageA.screenshot({path:path.join(output,'alpha9-mobile-bulk.png')});
   await pageA.locator('[data-bulk-submit]').click();
   await pageA.locator('[data-bulk-dialog]').waitFor({state:'hidden'});
   check(await rows.nth(1).locator('[data-access-method="N"][data-access-side="left"]').getAttribute('aria-pressed') === 'true', 'Bulk left not applied');
   check(await rows.nth(2).locator('[data-access-method="J"][data-access-side="right"]').getAttribute('aria-pressed') === 'true', 'Bulk right not applied');
+  await mode(pageB, 'diagnostics');
+  check(JSON.stringify(await geometry(pageA)) === JSON.stringify(await geometry(pageB)), 'Modes use different trusses');
+  check(await pageA.locator('[data-side], .excluded-state').count() === 0, 'Diagnostic fields leaked into survey');
+  check(await pageB.locator('[data-access-method], [data-height-form], [data-edit-access-note]').count() === 0, 'Survey editors leaked into diagnostics');
+  const diagnosticFirst = pageB.locator('.truss-row').first();
+  const [diagnosticSaved] = await Promise.all([
+    pageB.waitForResponse(r => r.url().endsWith('/diagnostics/left') && r.request().method() === 'PUT'),
+    diagnosticFirst.locator('[data-side="left"]').click(),
+  ]);
+  check(diagnosticSaved.ok(), 'Diagnostic change failed');
+  await pageA.waitForFunction(version => Number(document.querySelector('.truss-row').dataset.version) >= version, (await diagnosticSaved.json()).version);
+  check(await firstRow.locator('[data-access-method="Ž"][data-access-side="left"]').getAttribute('aria-pressed') === 'true', 'Diagnostics changed survey left');
+  check((await firstRow.locator('[data-access-note]').textContent()).includes('žeriavovou'), 'Diagnostics changed survey note');
+  for (const method of ['N', 'K']) {
+    const [saved] = await Promise.all([
+      pageA.waitForResponse(r => r.url().endsWith('/access/right') && r.request().method() === 'PUT'),
+      firstRow.locator(`[data-access-method="${method}"][data-access-side="right"]`).click(),
+    ]);
+    check(saved.ok(), 'Survey change failed');
+    await pageB.waitForFunction(version => Number(document.querySelector('.truss-row').dataset.version) >= version, (await saved.json()).version);
+    check(await diagnosticFirst.locator('[data-side="left"]').getAttribute('aria-pressed') === 'true', 'Survey changed diagnostic L');
+    check(await diagnosticFirst.locator('[data-side="right"]').getAttribute('aria-pressed') === 'false', 'Survey changed diagnostic P');
+  }
   const touchSizes = await firstRow.locator('[data-access-method]').evaluateAll(nodes => nodes.map(node => ({w:node.getBoundingClientRect().width,h:node.getBoundingClientRect().height})));
   check(touchSizes.every(size => size.w >= 44 && size.h >= 48), 'Access chips are too small');
   check(await pageA.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Mobile page overflows horizontally');
   await firstRow.scrollIntoViewIfNeeded();
-  await pageA.screenshot({path:path.join(output,'alpha8-mobile-access.png')});
+  await pageA.screenshot({path:path.join(output,'alpha9-mobile-access.png')});
+  await mode(pageA, 'diagnostics');
+  await pageA.locator('.truss-row').first().scrollIntoViewIfNeeded();
+  await pageA.screenshot({path:path.join(output,'alpha9-mobile-diagnostics.png')});
+  check(await pageA.locator('[data-access-method]').count() === 0, 'Mobile switch did not separate fields');
+  await mode(pageA, 'survey');
   await pageA.reload();
   check(await firstRow.locator('[data-access-method="Ž"][data-access-side="left"]').getAttribute('aria-pressed') === 'true', 'Left access did not persist');
   check(await firstRow.locator('[data-access-method="K"][data-access-side="right"]').getAttribute('aria-pressed') === 'true', 'Right access did not persist');
   await pageA.setViewportSize({width:820,height:1180});
   await firstRow.scrollIntoViewIfNeeded();
-  await pageA.screenshot({path:path.join(output,'alpha8-tablet-access.png')});
+  await pageA.screenshot({path:path.join(output,'alpha9-tablet-access.png')});
   check(await pageA.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Tablet page overflows horizontally');
+  await mode(pageA, 'diagnostics');
+  await pageA.locator('.truss-row').first().scrollIntoViewIfNeeded();
+  await pageA.screenshot({path:path.join(output,'alpha9-tablet-diagnostics.png')});
+  await mode(pageA, 'survey');
+
+  // Geometry edits are shared immediately between the two working modes.
+  const originalIds = (await geometry(pageA)).map(row => row.id);
+  await pageA.locator('.bay-actions a').click();
+  check(pageA.url().includes('mode=survey'), 'Settings lost the working mode');
+  check(await pageA.locator('[data-shared-geometry]').isVisible(), 'Settings are not marked as shared');
+  await pageA.locator('.admin-row').nth(1).locator('[name="label"]').fill('HIST-02');
+  await Promise.all([pageA.waitForEvent('load'), pageA.locator('[form="labels-form"]').click()]);
+  await pageB.waitForFunction(() => document.querySelectorAll('.truss-row [data-label]')[1]?.textContent === 'HIST-02');
+  await pageA.locator('[data-resize-form] input').fill('25');
+  await Promise.all([pageA.waitForEvent('load'), pageA.locator('[data-resize-form] button').click()]);
+  await pageB.waitForFunction(() => document.querySelectorAll('article[data-truss-id]').length === 25);
+  await pageA.locator('.breadcrumbs a').last().click();
+  await pageA.waitForSelector('body[data-work-mode="survey"]');
+  check(JSON.stringify(await geometry(pageA)) === JSON.stringify(await geometry(pageB)), 'Geometry diverged after label/size edits');
+  check(JSON.stringify((await geometry(pageA)).slice(0,24).map(row => row.id)) === JSON.stringify(originalIds), 'Resize changed historical IDs');
+  check((await geometry(pageA))[1].label === 'HIST-02', 'Label edit is not shared');
+  await firstRow.locator('.truss-identity').click();
+  check(await pageA.locator('[data-access-method]').count() === 10 && await pageA.locator('[data-exclude-form], .status-pair').count() === 0, 'Survey detail mixes diagnostics');
+  check(pageA.url().includes('mode=survey'), 'Truss detail lost the mode');
+  await pageA.locator('.hero a').click();
+  await pageA.waitForSelector('body[data-work-mode="survey"]');
   await pageA.locator('[data-open-export="bay-export-dialog"]').click();
   const bayDialog = pageA.locator("#bay-export-dialog");
   check(await bayDialog.isVisible(), "Bay export dialog is not visible");
@@ -160,14 +234,15 @@ try {
   check(JSON.stringify(bayOptionSignature) === JSON.stringify([
     "A4", "A3", "A2", "A1", "A0", "landscape", "portrait", "auto", "7", "9", "10", "12", "14",
   ]), "Bay dialog does not offer the complete shared options");
-  await pageA.screenshot({ path: path.join(output, "alpha8-bay-export-dialog.png"), fullPage: true });
+  await pageA.screenshot({ path: path.join(output, "alpha9-bay-export-dialog.png"), fullPage: true });
   await bayDialog.locator("[data-close-dialog]").click();
   const bayCases = [
-    ["A4", "landscape", "7", "alpha8-browser-bay-clean.pdf", 'false'],
-    ["A3", "landscape", "10", "alpha8-browser-bay-access.pdf", 'true'],
-    ["A2", "portrait", "14", "alpha8-browser-bay-A2-access.pdf", 'true'],
+    ["A4", "landscape", "7", "alpha9-browser-bay-clean.pdf", 'false'],
+    ["A3", "landscape", "10", "alpha9-browser-bay-access.pdf", 'true'],
+    ["A2", "portrait", "14", "alpha9-browser-bay-A2-access.pdf", 'true'],
   ];
   for (const [paper, orientation, font, filename, access] of bayCases) {
+    await mode(pageA, access === 'true' ? 'survey' : 'diagnostics');
     await pageA.locator('[data-open-export="bay-export-dialog"]').click();
     const form = bayDialog.locator("[data-export-form]");
     await form.locator('[name="page_size"]').selectOption(paper);
@@ -177,7 +252,7 @@ try {
     downloads.push(await savePdfDownload(pageA, form.locator("[data-export-submit]"), filename));
   }
 
-  await pageA.goto(`${base}/projects/${projectId}/plan`);
+  await pageA.goto(`${base}/projects/${projectId}/plan?mode=survey`);
   for (const access of ['true','false']) {
     const [loaded] = await Promise.all([
       pageA.waitForResponse(response => response.url().includes('/plan.svg?') && response.url().includes(`show_access=${access}`)),
@@ -187,7 +262,7 @@ try {
     check(svg.includes('data-access-legend') === (access === 'true'), 'Plan access layer mismatch');
     check(svg.includes('12,25 m') === (access === 'true'), 'Bay override missing from plan');
     check(svg.includes('8,5 m') === (access === 'true'), 'Inherited height missing from plan');
-    await pageA.screenshot({path:path.join(output,`alpha8-plan-access-${access}.png`)});
+    await pageA.screenshot({path:path.join(output,`alpha9-plan-access-${access}.png`)});
   }
   check((await pageA.locator("h1[data-project-name]").textContent()) === "Hala Žďár – zkouška", "Plan heading has a stale project name");
   await pageA.locator('[data-open-export="plan-export-dialog"]').click();
@@ -198,14 +273,15 @@ try {
   check(await visibleDialog.locator('[name="page_size"]').inputValue() === "A2", "Page-size preference was not shared from bay to plan");
   check(await visibleDialog.locator('[name="orientation"]').inputValue() === "portrait", "Orientation preference was not shared from bay to plan");
   check(await visibleDialog.locator('[name="font_size"]').inputValue() === "14", "Font-size preference was not shared from bay to plan");
-  await pageA.screenshot({ path: path.join(output, "alpha8-plan-export-dialog.png"), fullPage: true });
+  await pageA.screenshot({ path: path.join(output, "alpha9-plan-export-dialog.png"), fullPage: true });
   await visibleDialog.locator("[data-close-dialog]").click();
   const planCases = [
-    ["A4", "landscape", "auto", "alpha8-browser-plan-clean.pdf", 'false'],
-    ["A2", "portrait", "14", "alpha8-browser-plan-A2-access.pdf", 'true'],
-    ["A3", "landscape", "10", "alpha8-browser-plan-access.pdf", 'true'],
+    ["A4", "landscape", "auto", "alpha9-browser-plan-clean.pdf", 'false'],
+    ["A2", "portrait", "14", "alpha9-browser-plan-A2-access.pdf", 'true'],
+    ["A3", "landscape", "10", "alpha9-browser-plan-access.pdf", 'true'],
   ];
   for (const [paper, orientation, font, filename, access] of planCases) {
+    await mode(pageA, access === 'true' ? 'survey' : 'diagnostics');
     await pageA.locator('[data-open-export="plan-export-dialog"]').click();
     const form = visibleDialog.locator("[data-export-form]");
     await form.locator('[name="page_size"]').selectOption(paper);
@@ -214,7 +290,7 @@ try {
     await form.locator(`[name="show_access"][value="${access}"]`).check();
     downloads.push(await savePdfDownload(pageA, form.locator("[data-export-submit]"), filename));
   }
-  await pageA.screenshot({ path: path.join(output, "alpha8-plan-page.png"), fullPage: true });
+  await pageA.screenshot({ path: path.join(output, "alpha9-plan-page.png"), fullPage: true });
   await pageA.goto(bayUrl);
   await pageA.locator('[data-open-export="bay-export-dialog"]').click();
   check(await pageA.locator('#bay-export-dialog [name="page_size"]').inputValue() === "A3", "Page-size preference was not shared from plan to bay");
@@ -247,7 +323,7 @@ try {
   const missing = await pageA.goto(`${base}/projects/${projectId}`);
   check(missing.status() === 404, `Deleted project returned ${missing.status()} instead of 404`);
   await pageA.goto(`${base}/`);
-  await pageA.screenshot({ path: path.join(output, "alpha8-after-delete.png"), fullPage: true });
+  await pageA.screenshot({ path: path.join(output, "alpha9-after-delete.png"), fullPage: true });
 
   const result = {
     projectId,
@@ -256,6 +332,10 @@ try {
     downloads,
     realtimeRename: true,
     realtimeDelete: true,
+    sharedGeometryAfterLabelAndResize: true,
+    diagnosticAndSurveyDataIndependent: true,
+    mobileAndTabletModeSwitch: true,
+    exportsFromBothModes: true,
     consoleErrorsDuringNormalWorkflows: [],
   };
   await fs.writeFile(path.join(output, "browser-results.json"), JSON.stringify(result, null, 2), "utf8");

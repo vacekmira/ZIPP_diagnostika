@@ -2,7 +2,7 @@
 {% block title %}{{ project.name }} · {{ tr('app.name') }}{% endblock %}
 {% block content %}
 <nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><span data-project-name>{{ project.name }}</span></nav>
-<nav class="project-tabs"><a class="active" href="/projects/{{ project.id }}">{{ tr('tabs.overview') }}</a><a href="/projects/{{ project.id }}/plan">{{ tr('tabs.plan') }}</a></nav>
+<nav class="project-tabs"><a class="active" href="/projects/{{ project.id }}{{ mode_query }}">{{ tr('tabs.overview') }}</a><a href="/projects/{{ project.id }}/plan{{ mode_query }}">{{ tr('tabs.plan') }}</a></nav>
 <section class="hero compact project-hero">
   <div>
     <p class="eyebrow">{{ tr('project.archived') if project.archived else tr('project.active') }}</p>
@@ -23,25 +23,32 @@
     <button type="button" class="button danger-quiet" data-open-project-delete title="{{ tr('project.delete') }}">⌫ {{ tr('project.delete') }}</button>
   </div>
 </section>
+{% if mode == 'survey' %}
 <form class="panel height-form" data-height-form data-height-endpoint="/api/projects/{{ project.id }}/height" data-revision="{{ project.revision }}">
   <label>{{ tr('height.project') }}<input name="height_m" inputmode="decimal" value="{{ project.default_height_m if project.default_height_m is not none else '' }}" placeholder="{{ tr('height.optional') }}" {{ 'disabled' if project.archived }}></label>
   <button class="button primary" {{ 'disabled' if project.archived }}>{{ tr('save') }}</button>
 </form>
+{% else %}
 <section class="summary-card">
   <div><strong>{{ project.progress.percent }} %</strong><span>{{ tr('progress.total') }}</span></div>
   <div class="progress"><i style="width:{{ project.progress.percent }}%"></i></div>
   <p>{{ project.progress.completed }} / {{ project.progress.required }} {{ tr('progress.done') }} · {{ project.progress.remaining }} {{ tr('progress.remaining') }} · {{ project.progress.excluded }} {{ tr('progress.excluded') }}</p>
 </section>
+{% endif %}
 <section>
   <div class="section-heading"><h2>{{ tr('bays') }}</h2><span>{{ project.bays|length }} {{ tr('bay.total') }}</span></div>
   <div class="bay-grid">
     {% for bay in project.bays %}
-    <a class="bay-card" href="/bays/{{ bay.id }}">
+    <a class="bay-card" href="/bays/{{ bay.id }}{{ mode_query }}" data-bay-card-id="{{ bay.id }}">
       <div><span class="bay-number">{{ "%02d"|format(bay.position) }}</span><h3>{{ bay.name }}</h3></div>
-      <strong>{{ bay.progress.percent }} %</strong>
+      {% if mode == 'survey' %}
       <p data-height-bay="{{ bay.id }}">{{ tr('height.label') }}: {{ bay.effective_height_m if bay.effective_height_m is not none else tr('access.not_set') }}{{ ' m' if bay.effective_height_m is not none }}</p>
+      <p>{{ bay.trusses|length }} {{ tr('mode.trusses') }}</p>
+      {% else %}
+      <strong>{{ bay.progress.percent }} %</strong>
       <p>{{ bay.progress.completed }} / {{ bay.progress.required }} {{ tr('progress.done') }} · {{ bay.progress.excluded }} {{ tr('progress.excluded') }}</p>
       <div class="progress"><i style="width:{{ bay.progress.percent }}%"></i></div>
+      {% endif %}
     </a>
     {% endfor %}
   </div>

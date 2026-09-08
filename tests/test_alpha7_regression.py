@@ -19,7 +19,7 @@ def create_project(client, *, bays=3, trusses=24, name="Hala Žďár – zkoušk
         "bay_count": bays,
         "default_truss_count": trusses,
         "note": "Příliš žluťoučký kůň úpěl ďábelské ódy. Kôň, ľalia a ŕieka.",
-        "technician_name": "Alpha 8 tester",
+        "technician_name": "Alpha 9 tester",
     })
     assert response.status_code == 201, response.text
     return response.json()
@@ -47,40 +47,40 @@ def add_reference_states(client, project):
     bay = project["bays"][0]
     trusses = bay["trusses"]
     assert client.patch(f"/api/trusses/{trusses[0]['id']}/type", json={
-        "type": "gable", "technician_name": "Alpha 8 tester", "expected_version": trusses[0]["version"],
+        "type": "gable", "technician_name": "Alpha 9 tester", "expected_version": trusses[0]["version"],
     }).status_code == 200
     assert client.post(f"/api/bays/{bay['id']}/dilation-pairs", json={
-        "technician_name": "Alpha 8 tester",
+        "technician_name": "Alpha 9 tester",
         "truss_a_id": trusses[4]["id"],
         "truss_b_id": trusses[5]["id"],
         "expected_version_a": trusses[4]["version"],
         "expected_version_b": trusses[5]["version"],
     }).status_code == 201
     assert client.put(f"/api/trusses/{trusses[2]['id']}/diagnostics/left", json={
-        "done": True, "technician_name": "Alpha 8 tester", "expected_version": trusses[2]["version"],
+        "done": True, "technician_name": "Alpha 9 tester", "expected_version": trusses[2]["version"],
     }).status_code == 200
     assert client.post(f"/api/trusses/{trusses[3]['id']}/exclude", json={
-        "reason": "leak", "note": "Zatečení u Žďáru.", "technician_name": "Alpha 8 tester",
+        "reason": "leak", "note": "Zatečení u Žďáru.", "technician_name": "Alpha 9 tester",
         "expected_version": trusses[3]["version"],
     }).status_code == 200
 
 
-def test_current_release_assets_font_and_deployment_are_alpha8(client):
-    assert APP_VERSION == "Alpha 8"
-    assert client.get("/health").json()["version"] == "Alpha 8"
-    assert 'version = "0.8.0a8"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "zipp-diagnostics:alpha8" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+def test_current_release_assets_font_and_deployment_are_alpha9(client):
+    assert APP_VERSION == "Alpha 9"
+    assert client.get("/health").json()["version"] == "Alpha 9"
+    assert 'version = "0.9.0a9"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "zipp-diagnostics:alpha9" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "fonts-dejavu-core" not in (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert not (ROOT / "app/static/alpha4.css").exists()
-    assert (ROOT / "app/static/alpha8.css").is_file()
+    assert (ROOT / "app/static/alpha9.css").is_file()
     assert (ROOT / "app/assets/fonts/DejaVuSans.ttf").stat().st_size > 500_000
     assert (ROOT / "app/assets/fonts/DejaVuSans-Bold.ttf").stat().st_size > 500_000
     assert (ROOT / "app/assets/fonts/LICENSE-DejaVu.txt").is_file()
     page = client.get("/").text
-    assert "/static/app.js?v=alpha-8" in page
-    assert "/static/alpha8.css?v=alpha-8" in page
-    script = client.get("/static/app.js?v=alpha-8").text
-    assert 'const scriptVersion = "Alpha 8"' in script
+    assert "/static/app.js?v=alpha-9" in page
+    assert "/static/alpha9.css?v=alpha-9" in page
+    script = client.get("/static/app.js?v=alpha-9").text
+    assert 'const scriptVersion = "Alpha 9"' in script
     assert "downloadPdf" in script and "zipp.exportOptions" in script
 
 
@@ -239,7 +239,7 @@ def test_pdf_fonts_cover_complete_czech_slovak_latin_extended_sample(client):
 def test_rename_is_reflected_in_fresh_full_pdf_and_keeps_project_id(client):
     project = create_project(client, bays=1, trusses=10, name="Původní hala")
     response = client.patch(f"/api/projects/{project['id']}/name", json={
-        "name": "Hala Žďár – zkouška", "technician_name": "Alpha 8 tester",
+        "name": "Hala Žďár – zkouška", "technician_name": "Alpha 9 tester",
     })
     assert response.status_code == 200
     assert response.json()["id"] == project["id"]
