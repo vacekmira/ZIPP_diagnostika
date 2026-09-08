@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -24,6 +24,7 @@ class Project(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(160))
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    default_height_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     revision: Mapped[int] = mapped_column(Integer, default=1)
     labeling_scheme: Mapped[str] = mapped_column(String(16), default="bay_prefix")
@@ -41,6 +42,7 @@ class Bay(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String(160))
+    height_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -64,6 +66,9 @@ class Truss(Base):
     type: Mapped[str] = mapped_column(String(16), default="normal")
     left_done: Mapped[bool] = mapped_column(Boolean, default=False)
     right_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    left_access: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    right_access: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    access_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     excluded: Mapped[bool] = mapped_column(Boolean, default=False)
     exclusion_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     exclusion_note: Mapped[str | None] = mapped_column(Text, nullable=True)

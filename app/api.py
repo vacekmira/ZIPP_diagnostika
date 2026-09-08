@@ -5,11 +5,12 @@ import re
 import unicodedata
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
 from . import __version__
 from .bay_report import render_bay_report_pdf
+from .access import save_access
 from .database import get_db
 from .export_options import ExportOptions, FontSizeQuery, Orientation, PageSize
 from .auth import require_api_auth
@@ -44,6 +45,10 @@ from .plan_pdf import ExportLayoutError
 from .realtime import manager
 from .schemas import (
     ActorOperation,
+    AccessSet,
+    AccessNoteSet,
+    BulkAccessSet,
+    HeightSet,
     BayResize,
     BayUpdate,
     BulkLabelSet,
@@ -73,6 +78,7 @@ def load_project(db: Session, project_id: int) -> Project:
     project = db.scalar(
         select(Project)
         .where(Project.id == project_id)
+        .execution_options(populate_existing=True)
         .options(
             selectinload(Project.bays)
             .selectinload(Bay.trusses)
@@ -88,6 +94,7 @@ def load_bay(db: Session, bay_id: int) -> Bay:
     bay = db.scalar(
         select(Bay)
         .where(Bay.id == bay_id)
+        .execution_options(populate_existing=True)
         .options(selectinload(Bay.trusses).selectinload(Truss.pair_membership))
     )
     if not bay:
@@ -118,7 +125,8 @@ def list_projects(db: Session = Depends(get_db)):
 @router.post("/projects", status_code=201)
 async def add_project(payload: ProjectCreate, db: Session = Depends(get_db)):
     project = create_project(db, name=payload.name, note=payload.note, bay_count=payload.bay_count,
-                             truss_count=payload.default_truss_count, technician=payload.technician_name)
+                             truss_count=payload.default_truss_count, technician=payload.technician_name,
+                             default_height_m=payload.default_height_m)
     return project_dict(load_project(db, project.id))
 
 
@@ -167,9 +175,9 @@ async def delete_project(project_id: int, payload: ProjectDelete, db: Session = 
 
 
 @router.get("/projects/{project_id}/plan.svg")
-def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = None, db: Session = Depends(get_db)):
+def project_plan_svg(project_id: int, lang: str = "cs", revision: int | None = None, show_access: bool = False, db: Session = Depends(get_db)):
     project = project_dict(load_project(db, project_id))
-    return Response(render_plan_svg(project, normalize_language(lang)), media_type="image/svg+xml",
+    return Response(render_plan_svg(project, normalize_language(lang), show_access=show_access), media_type="image/svg+xml",
                     headers={"Cache-Control": "no-store", "X-Project-Revision": str(project["revision"])})
 
 
@@ -180,11 +188,12 @@ def project_plan_pdf(
     page_size: PageSize = "A3",
     orientation: Orientation = "landscape",
     font_size: FontSizeQuery = "auto",
+    show_access: bool = False,
     db: Session = Depends(get_db),
 ):
     project = project_dict(load_project(db, project_id))
     try:
-        options = ExportOptions(page_size, orientation, font_size)
+        options = ExportOptions(page_size, orientation, font_size, show_access)
         pdf = render_plan_pdf(project, normalize_language(lang), options=options)
     except ExportLayoutError as exc:
         raise HTTPException(422, exc.as_detail()) from exc
@@ -235,20 +244,20 @@ def bay_report_pdf(
     page_size: PageSize = "A3",
     orientation: Orientation = "landscape",
     font_size: FontSizeQuery = "auto",
+    show_access: bool = False,
     db: Session = Depends(get_db),
 ):
     bay = load_bay(db, bay_id)
     project = project_dict(load_project(db, bay.project_id))
     bay_data = next(item for item in project["bays"] if item["id"] == bay_id)
     created_at = datetime.now().astimezone()
-    options = ExportOptions(page_size, orientation, font_size)
-    pdf = render_bay_report_pdf(
-        project,
-        bay_data,
-        normalize_language(lang),
-        created_at,
-        options=options,
-    )
+    options = ExportOptions(page_size, orientation, font_size, show_access)
+    try:
+        pdf = render_bay_report_pdf(
+            project, bay_data, normalize_language(lang), created_at, options=options,
+        )
+    except ExportLayoutError as exc:
+        raise HTTPException(422, exc.as_detail()) from exc
     filename = safe_export_filename(project["name"], bay_data["name"], created_at.strftime("%Y-%m-%d"))
     return Response(pdf, media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
@@ -299,7 +308,8 @@ async def resize_bay(bay_id: int, payload: BayResize, db: Session = Depends(get_
         db.expire(bay, ["trusses"])
     else:
         affected = [t for t in active if t.position > payload.truss_count]
-        impacted = [t for t in affected if t.left_done or t.right_done or t.excluded or t.pair_membership]
+        impacted = [t for t in affected if t.left_done or t.right_done or t.excluded or t.pair_membership
+                    or t.left_access or t.right_access or t.access_note]
         if impacted and not payload.confirm:
             raise HTTPException(409, {"message": "Zmenšení skryje vazníky s existujícími daty.",
                                       "affected": [truss_dict(t) for t in affected], "confirmation_required": True})
@@ -337,6 +347,83 @@ async def diagnostic(truss_id: int, side: str, payload: DiagnosticSet, db: Sessi
                            payload.technician_name, payload.expected_version)
     await publish_truss(db, truss)
     return truss_dict(truss)
+
+
+async def publish_access(db, project, bay_id, changed):
+    await manager.broadcast(project.id, {
+        "type": "bay.access.updated", "bay_id": bay_id,
+        "project_revision": project.revision, "trusses": changed,
+    })
+
+
+@router.put("/trusses/{truss_id}/access/{side}")
+async def set_side_access(truss_id: int, side: str, payload: AccessSet, db: Session = Depends(get_db)):
+    if side not in {"left", "right"}:
+        raise HTTPException(404, "Neznámá strana.")
+    truss = require_truss(db, truss_id, writable=True)
+    project = require_project(db, truss.bay.project_id, writable=True)
+    changed = save_access(db, project, [(truss, payload.expected_version)],
+                          {f"{side}_access": payload.method}, payload.technician_name)
+    await publish_access(db, project, truss.bay_id, changed)
+    return truss_dict(truss)
+
+
+@router.put("/trusses/{truss_id}/access-note")
+async def set_access_note(truss_id: int, payload: AccessNoteSet, db: Session = Depends(get_db)):
+    truss = require_truss(db, truss_id, writable=True)
+    project = require_project(db, truss.bay.project_id, writable=True)
+    changed = save_access(db, project, [(truss, payload.expected_version)],
+                          {"access_note": (payload.note or "").strip() or None}, payload.technician_name)
+    await publish_access(db, project, truss.bay_id, changed)
+    return truss_dict(truss)
+
+
+@router.post("/bays/{bay_id}/access/bulk")
+async def bulk_access(bay_id: int, payload: BulkAccessSet, db: Session = Depends(get_db)):
+    bay = require_bay(db, bay_id, writable=True)
+    project = require_project(db, bay.project_id, writable=True)
+    targets = []
+    for item in payload.items:
+        truss = require_truss(db, item.truss_id, writable=True)
+        if truss.bay_id != bay.id:
+            raise HTTPException(422, "Vazník nepatří do této lodě.")
+        targets.append((truss, item.expected_version))
+    values = payload.model_dump(include={"left_access", "right_access"}, exclude_unset=True)
+    changed = save_access(db, project, targets, values, payload.technician_name)
+    await publish_access(db, project, bay.id, changed)
+    return {"changed": changed, "project_revision": project.revision}
+
+
+async def save_height(db, project, target, field, payload):
+    old = getattr(target, field)
+    result = db.execute(update(Project).where(
+        Project.id == project.id, Project.revision == payload.expected_revision,
+    ).values(revision=Project.revision + 1))
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Zakázku mezitím změnil jiný technik. Obnovte stránku.")
+    setattr(target, field, payload.height_m)
+    audit(db, project_id=project.id, bay_id=target.id if isinstance(target, Bay) else None,
+          technician=payload.technician_name, action="height.changed", field=field,
+          old=old, new=payload.height_m)
+    db.commit()
+    data = project_dict(load_project(db, project.id))
+    await manager.broadcast(project.id, {"type": "height.updated", "project": data,
+                                        "project_revision": project.revision})
+    return data
+
+
+@router.put("/projects/{project_id}/height")
+async def project_height(project_id: int, payload: HeightSet, db: Session = Depends(get_db)):
+    project = require_project(db, project_id, writable=True)
+    return await save_height(db, project, project, "default_height_m", payload)
+
+
+@router.put("/bays/{bay_id}/height")
+async def bay_height(bay_id: int, payload: HeightSet, db: Session = Depends(get_db)):
+    bay = require_bay(db, bay_id, writable=True)
+    project = require_project(db, bay.project_id, writable=True)
+    return await save_height(db, project, bay, "height_m", payload)
 
 
 @router.patch("/trusses/{truss_id}/label")

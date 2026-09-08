@@ -1,3 +1,4 @@
+{% from "_access.html" import access_layer %}
 {% macro export_options(tr) -%}
 <div class="three-columns" data-export-options>
   <label>{{ tr('plan.page_size') }}
@@ -26,4 +27,5 @@
     </select>
   </label>
 </div>
+{{ access_layer(tr) }}
 {%- endmacro %}

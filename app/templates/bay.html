@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_export_options.html" import export_options %}
+{% from "_access.html" import access_buttons %}
 {% block title %}{{ bay.name }} · {{ project.name }}{% endblock %}
 {% block content %}
 <nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><a href="/projects/{{ project.id }}" data-project-name>{{ project.name }}</a><span>/</span><span>{{ bay.name }}</span></nav>
@@ -12,7 +13,22 @@
 </section>
 {% if project.archived %}<div class="notice warning"><strong>{{ tr('bay.archived_notice') }}</strong><span>{{ tr('bay.archived_help') }}</span></div>{% endif %}
 <div class="legend"><span><i class="legend-box pending"></i> {{ tr('state.pending') }}</span><span><i class="legend-box done"></i> {{ tr('state.done') }}</span><span><i class="legend-box excluded"></i> {{ tr('state.excluded') }}</span><span><b>⛓</b> {{ tr('pair') }}</span></div>
-<section class="truss-list" data-bay-id="{{ bay.id }}">
+<form class="panel height-form" data-height-form data-height-endpoint="/api/bays/{{ bay.id }}/height" data-revision="{{ bay.project_revision }}">
+  <label>{{ tr('height.bay') }}<input name="height_m" inputmode="decimal" value="{{ bay.height_m if bay.height_m is not none else '' }}" placeholder="{{ tr('height.optional') }}" {{ 'disabled' if project.archived }}></label>
+  <button class="button primary" {{ 'disabled' if project.archived }}>{{ tr('save') }}</button>
+  <p class="height-help">{{ tr('height.inherit') }} <span data-height-bay="{{ bay.id }}">{{ tr('height.label') }}: {{ bay.effective_height_m if bay.effective_height_m is not none else tr('access.not_set') }}{{ ' m' if bay.effective_height_m is not none }}</span></p>
+</form>
+<section class="access-guide panel"><h2>{{ tr('access.title') }}</h2><p>{{ tr('access.help') }}</p>
+  <div class="access-legend">{% for method in ['N','K','Ž','L','J'] %}<span><b>{{ method }}</b> {{ tr('access.' ~ method) }}</span>{% endfor %}</div>
+  <button type="button" class="button secondary" data-select-mode aria-pressed="false" {{ 'disabled' if project.archived }}>{{ tr('access.select') }}</button>
+</section>
+<div class="bulk-toolbar" data-bulk-toolbar hidden>
+  <strong data-selected-count aria-live="polite">0</strong>
+  <button class="button secondary" type="button" data-select-all>{{ tr('access.all') }}</button>
+  <button class="button primary" type="button" data-open-bulk disabled>{{ tr('access.bulk') }}</button>
+  <button class="button secondary" type="button" data-end-selection>{{ tr('access.finish') }}</button>
+</div>
+<section class="truss-list access-truss-list" data-bay-id="{{ bay.id }}">
   {% for truss in bay.trusses %}
   {% set pair_start=truss.pair_id and (loop.first or bay.trusses[loop.index0-1].pair_id != truss.pair_id) %}
   {% set pair_end=truss.pair_id and (loop.last or bay.trusses[loop.index0+1].pair_id != truss.pair_id) %}
@@ -28,10 +44,37 @@
     </div>
     {% endif %}
     <a class="detail-link" href="/trusses/{{ truss.id }}" aria-label="{{ tr('detail') }} {{ truss.label }}">›</a>
+    <button type="button" class="button select-truss" data-select-truss aria-pressed="false" hidden>{{ tr('access.select_truss') }} {{ truss.label }}</button>
+    <div class="truss-access">
+      {{ access_buttons(tr, 'left', truss.left_access, project.archived) }}
+      {{ access_buttons(tr, 'right', truss.right_access, project.archived) }}
+      <p data-access-note>{{ truss.access_note or '' }}</p>
+      <button type="button" class="button secondary" data-edit-access-note {{ 'disabled' if project.archived }}>{{ tr('access.edit_note') }}</button>
+    </div>
   </article>
   {% endfor %}
 </section>
 
+<dialog data-access-note-dialog>
+  <form class="dialog-form" data-access-note-form>
+    <h2>{{ tr('access.note') }} - <span data-note-label></span></h2>
+    <label>{{ tr('access.note') }}<textarea name="note" rows="5" maxlength="2000"></textarea></label>
+    <p data-note-error class="export-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button><button class="button primary">{{ tr('save') }}</button></div>
+  </form>
+</dialog>
+<dialog data-bulk-dialog>
+  <form class="dialog-form" data-bulk-form>
+    <h2>{{ tr('access.bulk') }}</h2><p data-bulk-count></p>
+    {% for side in ['left','right'] %}
+      {{ access_buttons(tr, side, bulk=true) }}
+      <div class="bulk-side-options"><button class="button secondary" type="button" data-bulk-method="keep" data-access-side="{{ side }}" aria-pressed="true">{{ tr('access.keep') }}</button><button class="button secondary" type="button" data-bulk-method="clear" data-access-side="{{ side }}" aria-pressed="false">{{ tr('access.clear') }}</button></div>
+    {% endfor %}
+    <div class="access-legend">{% for method in ['N','K','Ž','L','J'] %}<span><b>{{ method }}</b> {{ tr('access.' ~ method) }}</span>{% endfor %}</div>
+    <p data-bulk-error class="export-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="button secondary" data-close-dialog>{{ tr('project.cancel') }}</button><button class="button primary" data-bulk-submit disabled>{{ tr('access.apply') }}</button></div>
+  </form>
+</dialog>
 <dialog id="bay-export-dialog" data-export-dialog>
   <form class="dialog-form" data-export-form data-export-endpoint="/api/bays/{{ bay.id }}/report.pdf" data-export-filename="zipp-bay-{{ bay.id }}.pdf" data-export-ready-key="report.export_ready">
     <div><p class="eyebrow">{{ tr('bay.export') }}</p><h2>{{ tr('report.export_title') }}</h2><p class="muted">{{ tr('report.export_help') }}</p></div>

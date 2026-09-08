@@ -37,14 +37,14 @@ def create_project(client, *, bays=2, trusses=8, name="Hala Alpha 4"):
 
 
 def test_alpha4_features_are_preserved_in_current_release(client):
-    assert APP_VERSION == "Alpha 7"
-    assert client.get("/health").json()["version"] == "Alpha 7"
-    assert "Alpha 7" in client.get("/login").text or "Alpha 7" in client.get("/").text
-    assert "Alpha 7" in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()[0]
-    assert 'version = "0.7.0a7"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "zipp-diagnostics:alpha7" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert APP_VERSION == "Alpha 8"
+    assert client.get("/health").json()["version"] == "Alpha 8"
+    assert "Alpha 8" in client.get("/login").text or "Alpha 8" in client.get("/").text
+    assert "Alpha 8" in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()[0]
+    assert 'version = "0.8.0a8"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "zipp-diagnostics:alpha8" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert not (ROOT / "app/static/alpha2.css").exists()
-    assert (ROOT / "app/static/alpha7.css").is_file()
+    assert (ROOT / "app/static/alpha8.css").is_file()
 
 
 def test_font_profiles_have_larger_default_and_all_pdf_variants_work(client):

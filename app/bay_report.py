@@ -11,6 +11,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from . import APP_VERSION
+from .access import height_text
 from .export_options import ExportOptions
 from .i18n import translator
 from .plan import build_plan_geometry, register_pdf_fonts, svg_drawing
@@ -58,7 +59,7 @@ def _paragraph(value, style: ParagraphStyle) -> Paragraph:
     return Paragraph(text, style)
 
 
-def bay_report_rows(bay: dict, language: str = "cs") -> list[list[str]]:
+def bay_report_rows(bay: dict, language: str = "cs", show_access: bool = False) -> list[list[str]]:
     """Return display data while preserving actual L/P booleans verbatim."""
     tr = translator(language)
     pair_members: dict[int, list[dict]] = {}
@@ -84,6 +85,11 @@ def bay_report_rows(bay: dict, language: str = "cs") -> list[list[str]]:
             pair_text,
             truss.get("exclusion_note") or "-",
         ])
+        if show_access:
+            rows[-1][2] += f' / {truss.get("left_access") or "-"}'
+            rows[-1][3] += f' / {truss.get("right_access") or "-"}'
+            if truss.get("access_note"):
+                rows[-1][-1] += f'\n{tr("access.note")}: {truss["access_note"]}'
     return rows
 
 
@@ -130,7 +136,7 @@ def render_bay_report_pdf(
     )
     subheading = ParagraphStyle(
         "ZippSubheading", parent=body, fontName="ZippSansBold", fontSize=profile.subheading,
-        leading=profile.subheading * 1.22, spaceBefore=7 * mm, spaceAfter=3 * mm,
+        leading=profile.subheading * 1.22, spaceBefore=7 * mm, spaceAfter=3 * mm, keepWithNext=True,
     )
     table_header = ParagraphStyle(
         "ZippTableHeader", parent=body, fontName="ZippSansBold", fontSize=profile.table_header,
@@ -182,10 +188,29 @@ def render_bay_report_pdf(
         summary,
         _paragraph(tr("report.diagram"), subheading),
     ]
+    if options.show_access:
+        story.insert(4, _paragraph(height_text(project, bay, tr), body))
 
-    max_height = min(76 * mm, document.height * 0.34)
-    geometry = build_plan_geometry(project, {bay["id"]})
+    max_height = (document.height - 50) if options.show_access else min(76 * mm, document.height * 0.34)
+    geometry = build_plan_geometry(project, {bay["id"]}, options.show_access)
     scale = min(available_width / geometry.width, max_height / geometry.height, 1)
+    if options.show_access:
+        # Geometry reserves physical space for all text, including the access
+        # legend. Iterate because the source font compensates for PDF scaling.
+        for _ in range(40):
+            geometry = build_plan_geometry(project, {bay["id"]}, True, profile.diagram_text / scale)
+            new_scale = min(available_width / geometry.width, max_height / geometry.height, 1)
+            if abs(new_scale - scale) < 0.000001:
+                break
+            scale = new_scale
+        from .plan_pdf import ExportLayoutError
+        source_size = profile.diagram_text / scale
+        legend_right = 112 + 3 * max(250, source_size * 15)
+        if geometry.height * scale > max_height + 0.5 or legend_right > geometry.width + 0.5:
+            raise ExportLayoutError(
+                "Schéma s přístupy se při zvoleném písmu nevejde na stránku.",
+                ["Zvolte větší formát papíru nebo menší písmo."],
+            )
     # svglib scales geometry and text together. Compensate before conversion so
     # the label/L-P/legend base size after fitting is the requested physical pt.
     drawing = svg_drawing(
@@ -193,6 +218,7 @@ def render_bay_report_pdf(
         language,
         {bay["id"]},
         base_font_size=profile.diagram_text / scale,
+        show_access=options.show_access,
     )
     drawing.scale(scale, scale)
     drawing.width *= scale
@@ -209,7 +235,7 @@ def render_bay_report_pdf(
         tr("report.status"), tr("report.pair"), tr("report.note"),
     ]
     rows = [[_paragraph(value, table_header) for value in headers]]
-    for values in bay_report_rows(bay, language):
+    for values in bay_report_rows(bay, language, options.show_access):
         rows.append([_paragraph(value, body) for value in values])
 
     column_widths = [31, 34, 30, 30, 49, 45, 135]

@@ -115,10 +115,10 @@ def audit(
     )
 
 
-def create_project(db: Session, *, name: str, note: str | None, bay_count: int, truss_count: int, technician: str) -> Project:
+def create_project(db: Session, *, name: str, note: str | None, bay_count: int, truss_count: int, technician: str, default_height_m: float | None = None) -> Project:
     labeling_scheme = "single_v" if bay_count == 1 else "bay_prefix"
     project = Project(name=clean_text(name, "Název zakázky"), note=(note or "").strip() or None,
-                      labeling_scheme=labeling_scheme)
+                      labeling_scheme=labeling_scheme, default_height_m=default_height_m)
     db.add(project)
     db.flush()
     for bay_position in range(1, bay_count + 1):
@@ -241,6 +241,9 @@ def truss_dict(truss: Truss) -> dict:
         "type_label": TYPE_LABELS[truss.type],
         "left_done": truss.left_done,
         "right_done": truss.right_done,
+        "left_access": truss.left_access,
+        "right_access": truss.right_access,
+        "access_note": truss.access_note,
         "excluded": truss.excluded,
         "exclusion_reason": truss.exclusion_reason,
         "exclusion_reason_label": REASON_LABELS.get(truss.exclusion_reason),
@@ -258,6 +261,10 @@ def bay_dict(bay: Bay) -> dict:
         "project_id": bay.project_id,
         "position": bay.position,
         "name": bay.name,
+        "height_m": bay.height_m,
+        "effective_height_m": bay.height_m if bay.height_m is not None else bay.project.default_height_m,
+        "default_height_m": bay.project.default_height_m,
+        "project_revision": bay.project.revision,
         "progress": progress_for_trusses(trusses),
         "trusses": [{**truss_dict(t), "duplicate_label": t.label.casefold() in duplicates} for t in trusses],
     }
@@ -270,6 +277,7 @@ def project_dict(project: Project) -> dict:
         "id": project.id,
         "name": project.name,
         "note": project.note,
+        "default_height_m": project.default_height_m,
         "archived": project.archived,
         "revision": project.revision,
         "progress": progress_for_trusses(trusses),

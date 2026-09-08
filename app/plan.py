@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
@@ -12,6 +13,7 @@ from svglib.fonts import register_font as register_svg_font
 from svglib.svglib import svg2rlg
 
 from . import APP_VERSION
+from .access import ACCESS_METHODS, height_text
 from .domain import bay_code
 from .export_options import ExportOptions
 from .i18n import translator
@@ -74,7 +76,7 @@ def _truss_distances(bay: dict) -> dict[int, float]:
     return distances
 
 
-def build_plan_geometry(project: dict, bay_ids: set[int] | None = None) -> PlanGeometry:
+def build_plan_geometry(project: dict, bay_ids: set[int] | None = None, show_access: bool = False, base_font_size: float = 13) -> PlanGeometry:
     """Build one continuous hall geometry shared by SVG and every PDF output."""
     selected = [bay for bay in project["bays"] if bay_ids is None or bay["id"] in bay_ids]
     display_bays = sorted(selected, key=lambda item: item["position"], reverse=True)
@@ -86,13 +88,14 @@ def build_plan_geometry(project: dict, bay_ids: set[int] | None = None) -> PlanG
     width = max(960, MARGIN_LEFT + MARGIN_RIGHT + horizontal_span)
     right = width - MARGIN_RIGHT
     left = right - horizontal_span
-    object_top = HEADER_HEIGHT
+    object_top = max(HEADER_HEIGHT, base_font_size * 5) if show_access else HEADER_HEIGHT
+    bay_depth = max(BAY_DEPTH, base_font_size * 16) if show_access else BAY_DEPTH
 
     bay_geometry: list[BayGeometry] = []
     boundaries: dict[int, BoundaryGeometry] = {}
     for display_index, bay in enumerate(display_bays):
-        top = object_top + display_index * BAY_DEPTH
-        bottom = top + BAY_DEPTH
+        top = object_top + display_index * bay_depth
+        bottom = top + bay_depth
         geometry = BayGeometry(
             bay=bay,
             top=top,
@@ -110,7 +113,8 @@ def build_plan_geometry(project: dict, bay_ids: set[int] | None = None) -> PlanG
         )
 
     count = max(len(display_bays), 1)
-    height = object_top + count * BAY_DEPTH + LEGEND_HEIGHT
+    legend_height = max(260, base_font_size * 13) if show_access else LEGEND_HEIGHT
+    height = object_top + count * bay_depth + legend_height
     return PlanGeometry(
         width=width,
         height=height,
@@ -187,13 +191,14 @@ def render_plan_svg(
     font_scale: float = 1.0,
     base_font_size: float | None = None,
     include_version: bool = True,
+    show_access: bool = False,
 ) -> str:
     tr = translator(language)
-    geometry = build_plan_geometry(project, bay_ids)
+    base_size = float(base_font_size) if base_font_size is not None else 13 * font_scale
+    geometry = build_plan_geometry(project, bay_ids, show_access, base_size)
     right = geometry.right
     axis_left = geometry.left - 18
     axis_right = right + 18
-    base_size = float(base_font_size) if base_font_size is not None else 13 * font_scale
     text_scale = base_size / 13
     title_size = 24 * text_scale
     title_width = geometry.width - MARGIN_LEFT - 30
@@ -237,11 +242,15 @@ def render_plan_svg(
         parts += [
             f'<g data-bay-id="{bay["id"]}" data-bay-position="{bay["position"]}" '
             f'data-top="{top}" data-bottom="{bottom}">',
-            _wrapped_svg_text(bay["name"], right + 104, center, "bay", line_height=17 * text_scale),
+            _wrapped_svg_text(bay["name"], right + (70 if show_access else 104), center, "bay",
+                              max_chars=max(4, int(160 / (16 * text_scale * 0.62))) if show_access else 17,
+                              line_height=17 * text_scale),
             f'<text x="{right + 30}" y="{top + 21}" class="label" style="fill:#3254c7">P</text>',
             f'<text x="{right + 30}" y="{bottom - 9}" class="label" style="fill:#3254c7">L</text>',
         ]
         visible = sorted(bay["trusses"], key=lambda item: item["position"])
+        if show_access:
+            parts.append(f'<text data-height-for="{bay["id"]}" x="{right + 70}" y="{bottom - 18}" class="small">{escape(height_text(project, bay, tr))}</text>')
         x_by_id: dict[int, float] = {}
         for truss in visible:
             x = right - bay_geometry.distance_by_id[truss["id"]]
@@ -260,9 +269,11 @@ def render_plan_svg(
                 )
             annotation = _truss_annotation(truss, tr)
             text = f'{truss["label"]}{" - " + annotation if annotation else ""}'
+            label_y = center if show_access else center + 47
+            anchor = ' text-anchor="middle"' if show_access else ''
             parts.append(
-                f'<text x="{x - 7}" y="{center + 47}" class="label" '
-                f'transform="rotate(-90 {x - 7} {center + 47})">{escape(text)}</text>'
+                f'<text x="{x - 7}" y="{label_y}" class="label"{anchor} '
+                f'transform="rotate(-90 {x - 7} {label_y})">{escape(text)}</text>'
             )
             # Markers sit just inside a bay, so independent L/P states at a
             # shared boundary never cover one another.
@@ -276,6 +287,11 @@ def render_plan_svg(
                     f'stroke="#28715c" stroke-width="1.5"><title>{side}: '
                     f'{escape(tr("state.done") if done else tr("state.pending"))}</title></circle>'
                 )
+            if show_access:
+                for side, y in (("right", top + 48), ("left", bottom - 22)):
+                    method = truss.get(f"{side}_access")
+                    if method in ACCESS_METHODS:
+                        parts.append(f'<text data-access-for="{truss["id"]}" data-access-side="{side}" x="{x + 7}" y="{y}" class="label" style="fill:#735014">{method}</text>')
 
         # A bracket is drawn only for a real persisted DilationPair.
         pair_groups: dict[int, list[dict]] = {}
@@ -290,13 +306,22 @@ def render_plan_svg(
             parts.append(
                 f'<path data-pair-id="{pair_id}" d="M{x1},{top + 12} V{bracket_y} H{x2} V{top + 12}" class="pair"/>'
             )
-            parts.append(
-                f'<text x="{(x1 + x2) / 2}" y="{bracket_y + 14}" text-anchor="middle" '
-                f'class="small" style="fill:#7b5200">{escape(tr("pair"))}</text>'
-            )
+            if not show_access:
+                # Access mode keeps the bracket and its legend; repeating the
+                # long pair caption here would cover the individual P codes.
+                parts.append(
+                    f'<text x="{(x1 + x2) / 2}" y="{bracket_y + 14}" text-anchor="middle" '
+                    f'class="small" style="fill:#7b5200">{escape(tr("pair"))}</text>'
+                )
         parts.append("</g>")
 
     legend_y = geometry.height - 104
+    legend_column = 250
+    legend_row = 31
+    if show_access:
+        legend_y = max((bay.bottom for bay in geometry.bays), default=HEADER_HEIGHT) + base_size * 3
+        legend_column = max(250, base_size * 15)
+        legend_row = max(31, base_size * 1.8)
     legend = [
         ("#384844", "", tr("type.normal")),
         ("#17201e", "", tr("type.gable")),
@@ -308,14 +333,21 @@ def render_plan_svg(
     ]
     parts.append(f'<text x="{MARGIN_LEFT}" y="{legend_y - 25}" class="label">{escape(tr("plan.legend"))}</text>')
     for index, (color, dash, label) in enumerate(legend):
-        x = MARGIN_LEFT + (index % 3) * 250
-        y = legend_y + (index // 3) * 31
+        x = MARGIN_LEFT + (index % 3) * legend_column
+        y = legend_y + (index // 3) * legend_row
         if dash == "pair":
             marker = f'<path d="M{x},{y + 5} V{y - 5} H{x + 38} V{y + 5}" stroke="{color}" stroke-width="2.2" fill="none"/>'
         else:
             dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
             marker = f'<line x1="{x}" y1="{y}" x2="{x + 38}" y2="{y}" stroke="{color}" stroke-width="3"{dash_attr}/>'
         parts.append(f'{marker}<text x="{x + 48}" y="{y + 4}" class="legend-text">{escape(label)}</text>')
+    if show_access:
+        y0 = legend_y + legend_row * 2 + base_size * 2.5
+        parts.append(f'<text data-access-legend="true" x="{MARGIN_LEFT}" y="{y0}" class="label">{escape(tr("access.legend"))}</text>')
+        for index, method in enumerate(ACCESS_METHODS):
+            x = MARGIN_LEFT + (index % 3) * legend_column
+            y = y0 + legend_row + (index // 3) * legend_row
+            parts.append(f'<text x="{x}" y="{y}" class="legend-text">{method} = {escape(tr("access." + method))}</text>')
     parts.append(
         f'<text x="{right - 120}" y="{geometry.height - 16}" class="small muted">'
         f'L = {escape(tr("plan.left"))} - P = {escape(tr("plan.right"))}</text>'
@@ -355,6 +387,7 @@ def svg_drawing(
     bay_ids: set[int] | None = None,
     font_scale: float = 1.0,
     base_font_size: float | None = None,
+    show_access: bool = False,
 ):
     register_pdf_fonts()
     # svglib treats a CSS fallback list as an unknown family and silently
@@ -367,10 +400,15 @@ def svg_drawing(
         font_scale,
         base_font_size,
         include_version=False,
+        show_access=show_access,
     ).replace(
         'font-family:ZippSans,"DejaVu Sans",Arial,sans-serif',
         "font-family:ZippSans",
     )
+    # CSS px are converted at 96 dpi, while unitless SVG geometry is treated
+    # as PDF points by svglib. Use pt for PDF-only font styles so requested
+    # label/L-P/legend sizes are not silently reduced to 75%.
+    source = re.sub(r'(font-size:[0-9.]+)px', r'\1pt', source)
     drawing = svg2rlg(io.BytesIO(source.encode("utf-8")))
     if drawing is None:
         raise RuntimeError("SVG se nepodařilo převést do PDF.")
@@ -395,7 +433,7 @@ def _force_embedded_unicode_fonts(node, seen: set[int] | None = None) -> None:
 
 
 def _pdf_projects(project: dict) -> list[dict]:
-    """Compatibility helper: Alpha 7 never splits a full-project export."""
+    """Compatibility helper: Alpha 8 never splits a full-project export."""
     return [project]
 
 

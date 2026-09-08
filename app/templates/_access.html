@@ -1,0 +1,16 @@
+{% macro access_buttons(tr, side, selected='', disabled=false, bulk=false) -%}
+<div class="access-side" role="group" aria-label="{{ tr('access.title') }} {{ 'L' if side == 'left' else 'P' }}">
+  <strong>{{ 'L' if side == 'left' else 'P' }}</strong>
+  {% for method in ['N', 'K', 'Ž', 'L', 'J'] %}
+  <button type="button" class="access-chip" {{ 'data-bulk-method' if bulk else 'data-access-method' }}="{{ method }}" data-access-side="{{ side }}" aria-pressed="{{ 'true' if selected == method else 'false' }}" aria-label="{{ 'L' if side == 'left' else 'P' }}: {{ tr('access.' ~ method) }}" title="{{ tr('access.' ~ method) }}" {{ 'disabled' if disabled }}>{{ method }}</button>
+  {% endfor %}
+</div>
+{%- endmacro %}
+{% macro access_layer(tr) -%}
+<fieldset class="access-layer"><legend>{{ tr('access.title') }}</legend>
+  <div class="touch-options">
+    <label><input type="radio" name="show_access" value="false" checked><span>{{ tr('access.hide') }}</span></label>
+    <label><input type="radio" name="show_access" value="true"><span>{{ tr('access.show') }}</span></label>
+  </div>
+</fieldset>
+{%- endmacro %}

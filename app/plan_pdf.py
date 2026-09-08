@@ -7,6 +7,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
 from . import APP_VERSION
+from .access import ACCESS_METHODS, height_text
 from .domain import bay_code
 from .export_options import (
     AUTO_FONT_SIZES,
@@ -119,6 +120,7 @@ def _candidate_layout(
     paper_size: str,
     font_size: int,
     orientation: str,
+    show_access: bool = False,
 ) -> tuple[PlanPdfLayout | None, list[str]]:
     register_pdf_fonts()
     tr = translator(language)
@@ -137,6 +139,8 @@ def _candidate_layout(
 
     header_height = max(54.0, len(title_lines) * title_size * 1.18 + base * 2.2)
     legend_height = max(76.0, base * 6.9 + 18.0)
+    if show_access:
+        legend_height += base * 5.4
     right_reserve = max(112.0, min(220.0, page_width * 0.17))
     plot_top = page_height - margin - header_height
     plot_bottom = margin + legend_height
@@ -165,11 +169,14 @@ def _candidate_layout(
     boundary_circle_x = page_width - margin - max(9.0, base * 0.9)
     bay_name_width = boundary_circle_x - max(15.0, base * 1.2) - name_x
     for bay_geometry in geometry.bays:
-        name_lines = wrap_pdf_text(bay_geometry.bay["name"], "ZippSansBold", base, bay_name_width)
-        if len(name_lines) > 4:
+        name_text = bay_geometry.bay["name"]
+        name_lines = wrap_pdf_text(name_text, "ZippSansBold", base, bay_name_width)
+        if show_access:
+            name_lines += wrap_pdf_text(height_text(project, bay_geometry.bay, tr), "ZippSansBold", base, bay_name_width)
+        if len(name_lines) > (6 if show_access else 4):
             reasons.append(f'Název lodě „{bay_geometry.bay["name"]}“ se nevejde do pravého popisu.')
         trusses = sorted(bay_geometry.bay["trusses"], key=lambda item: item["position"])
-        max_label_width = max(bay_height - base * 2.5, base * 2.5)
+        max_label_width = max(bay_height - base * (9 if show_access else 2.5), base * 2.5)
         columns: dict[int, float] = {}
         for truss in trusses:
             lines = wrap_pdf_text(_truss_text(truss, tr), "ZippSansBold", base, max_label_width)
@@ -195,6 +202,12 @@ def _candidate_layout(
                 if explicit_pair
                 else (columns[previous["id"]] + columns[current["id"]]) / 2 + base * 0.12
             )
+            if show_access:
+                required = max(required, base * 0.95)
+                if not explicit_pair and (previous.get("pair_id") or current.get("pair_id")):
+                    # Wrapped pair labels extend towards the outer neighbours.
+                    pair_columns = [columns[t["id"]] for t in (previous, current) if t.get("pair_id")]
+                    required = max(required, max(pair_columns) / 0.78 * 1.1 + base * 0.9)
             if distance + 0.01 < required:
                 reasons.append(
                     f'Popisy vazníků „{previous["label"]}“ a „{current["label"]}“ by se překrývaly.'
@@ -228,12 +241,13 @@ def _recommendations(
     paper_size: str,
     font_size: int,
     orientation: str,
+    show_access: bool = False,
 ) -> list[str]:
     language = normalize_language(language)
     recommendations: list[str] = []
     smaller = [size for size in reversed(FONT_SIZES) if size < font_size]
     for size in smaller:
-        layout, _ = _candidate_layout(project, language, paper_size, size, orientation)
+        layout, _ = _candidate_layout(project, language, paper_size, size, orientation, show_access)
         if layout:
             recommendations.append(
                 f"Použijte {paper_size} / {orientation.title()} / {size} pt."
@@ -241,7 +255,7 @@ def _recommendations(
             )
             break
     if orientation == "portrait":
-        layout, _ = _candidate_layout(project, language, paper_size, font_size, "landscape")
+        layout, _ = _candidate_layout(project, language, paper_size, font_size, "landscape", show_access)
         if layout:
             recommendations.append(
                 f"Použijte {paper_size} / Landscape / {font_size} pt."
@@ -249,7 +263,7 @@ def _recommendations(
             )
     start = PAPER_ORDER.index(paper_size)
     for candidate_paper in PAPER_ORDER[start + 1:]:
-        layout, _ = _candidate_layout(project, language, candidate_paper, font_size, orientation)
+        layout, _ = _candidate_layout(project, language, candidate_paper, font_size, orientation, show_access)
         if layout:
             recommendations.append(
                 f"Použijte {candidate_paper} / {orientation.title()} / {font_size} pt." if language == "cs"
@@ -281,7 +295,7 @@ def resolve_plan_pdf_layout(
     if requested == "auto":
         collected_reasons: list[str] = []
         for size in AUTO_FONT_SIZES:
-            layout, reasons = _candidate_layout(project, language, paper_size, size, normalized_orientation)
+            layout, reasons = _candidate_layout(project, language, paper_size, size, normalized_orientation, options.show_access)
             if layout:
                 return PlanPdfLayout(**{**layout.__dict__, "requested_font_size": "auto"})
             collected_reasons = reasons
@@ -292,7 +306,7 @@ def resolve_plan_pdf_layout(
         )
         raise ExportLayoutError(
             message,
-            _recommendations(project, language, paper_size, 7, normalized_orientation),
+            _recommendations(project, language, paper_size, 7, normalized_orientation, options.show_access),
             collected_reasons,
         )
     try:
@@ -301,7 +315,7 @@ def resolve_plan_pdf_layout(
         raise ValueError(f"Unsupported font size: {font_size}") from exc
     if numeric_size not in FONT_SIZES:
         raise ValueError(f"Unsupported font size: {font_size}")
-    layout, reasons = _candidate_layout(project, language, paper_size, numeric_size, normalized_orientation)
+    layout, reasons = _candidate_layout(project, language, paper_size, numeric_size, normalized_orientation, options.show_access)
     if layout:
         return layout
     message = (
@@ -311,7 +325,7 @@ def resolve_plan_pdf_layout(
     )
     raise ExportLayoutError(
         message,
-        _recommendations(project, language, paper_size, numeric_size, normalized_orientation),
+        _recommendations(project, language, paper_size, numeric_size, normalized_orientation, options.show_access),
         reasons,
     )
 
@@ -361,7 +375,7 @@ def _draw_centered_lines(
         pdf.drawString(x, first_y - index * leading, line)
 
 
-def _draw_legend(pdf: canvas.Canvas, layout: PlanPdfLayout, tr) -> None:
+def _draw_legend(pdf: canvas.Canvas, layout: PlanPdfLayout, tr, show_access=False) -> None:
     base = layout.font_size
     x0 = layout.margin
     title_y = layout.plot_bottom - base * 1.15
@@ -402,6 +416,15 @@ def _draw_legend(pdf: canvas.Canvas, layout: PlanPdfLayout, tr) -> None:
         pdf.setFont("ZippSans", base)
         pdf.setFillColor("#17201e")
         pdf.drawString(x + base * 4.1, y - base * 0.32, label)
+    if show_access:
+        title_y = first_y - row_height * 3.3
+        pdf.setFont("ZippSansBold", base)
+        pdf.drawString(x0, title_y, tr("access.legend"))
+        pdf.setFont("ZippSans", base)
+        for index, method in enumerate(ACCESS_METHODS):
+            x = x0 + index % 3 * column_width
+            y = title_y - base * 1.65 - index // 3 * row_height
+            pdf.drawString(x, y, f'{method} = {tr("access." + method)}')
 
 
 def render_full_plan_pdf(
@@ -473,6 +496,8 @@ def render_full_plan_pdf(
         name_x = layout.object_right + layout.font_size * 2.65
         name_width = circle_x - max(15.0, layout.font_size * 1.2) - name_x
         name_lines = wrap_pdf_text(bay["name"], "ZippSansBold", layout.font_size, name_width)
+        if options.show_access:
+            name_lines += wrap_pdf_text(height_text(project, bay, tr), "ZippSansBold", layout.font_size, name_width)
         _draw_centered_lines(pdf, name_lines, name_x, center, "ZippSansBold", layout.font_size)
         pdf.setFillColor("#3254c7")
         pdf.setFont("ZippSansBold", layout.font_size)
@@ -491,7 +516,7 @@ def render_full_plan_pdf(
                 pair_direction[by_position[0]["id"]] = 1
                 pair_direction[by_position[1]["id"]] = -1
         x_by_id: dict[int, float] = {}
-        label_width = max((top - bottom) - layout.font_size * 2.5, layout.font_size * 2.5)
+        label_width = max((top - bottom) - layout.font_size * (9 if options.show_access else 2.5), layout.font_size * 2.5)
         marker_radius = max(2.8, min(5.0, layout.font_size * 0.35))
         for truss in trusses:
             x = layout.object_right - bay_geometry.distance_by_id[truss["id"]] * layout.model_scale
@@ -517,6 +542,13 @@ def render_full_plan_pdf(
                 pdf.setStrokeColor("#28715c")
                 pdf.setLineWidth(1.0)
                 pdf.circle(x, y, marker_radius, stroke=1, fill=1)
+            if options.show_access:
+                pdf.setFont("ZippSansBold", layout.font_size)
+                pdf.setFillColor("#735014")
+                for side, y in (("right", top - layout.font_size * 3.7), ("left", bottom + layout.font_size * 1.5)):
+                    method = truss.get(f"{side}_access")
+                    if method in ACCESS_METHODS:
+                        pdf.drawString(x + layout.font_size * 0.2, y, method)
 
         for pair_id, members in pair_members.items():
             if len(members) != 2:
@@ -536,7 +568,7 @@ def render_full_plan_pdf(
             # Repeating a horizontal caption inside every narrow pair would
             # collide with the physical-size vertical labels on small paper.
 
-    _draw_legend(pdf, layout, tr)
+    _draw_legend(pdf, layout, tr, options.show_access)
     footer_size = max(7.0, layout.font_size * 0.72)
     pdf.setFont("ZippSans", footer_size)
     pdf.setFillColor("#63706c")

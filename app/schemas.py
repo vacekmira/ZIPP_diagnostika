@@ -13,6 +13,7 @@ class ProjectCreate(BaseModel):
     bay_count: int = Field(ge=1, le=100)
     default_truss_count: int = Field(ge=1, le=500)
     note: str | None = Field(default=None, max_length=4000)
+    default_height_m: float | None = Field(default=None, gt=0, le=1000, allow_inf_nan=False)
     technician_name: str = Field(min_length=1, max_length=100)
 
 
@@ -27,6 +28,44 @@ class ProjectDelete(BaseModel):
 
 class BayUpdate(ActorOperation):
     name: str = Field(min_length=1, max_length=160)
+
+
+class HeightSet(ActorOperation):
+    height_m: float | None = Field(gt=0, le=1000, allow_inf_nan=False)
+    expected_revision: int = Field(ge=1)
+
+
+AccessMethod = Literal["N", "K", "Ž", "L", "J"]
+
+
+class AccessSet(ActorOperation):
+    expected_version: int = Field(ge=1)
+    method: AccessMethod | None
+
+
+class AccessNoteSet(ActorOperation):
+    expected_version: int = Field(ge=1)
+    note: str | None = Field(max_length=2000)
+
+
+class AccessTarget(BaseModel):
+    truss_id: int
+    expected_version: int = Field(ge=1)
+
+
+class BulkAccessSet(BaseModel):
+    technician_name: str = Field(min_length=1, max_length=100)
+    items: list[AccessTarget] = Field(min_length=1, max_length=500)
+    left_access: AccessMethod | None = None
+    right_access: AccessMethod | None = None
+
+    @model_validator(mode="after")
+    def validate_selection(self):
+        if not {"left_access", "right_access"}.intersection(self.model_fields_set):
+            raise ValueError("Vyberte alespoň jednu stranu.")
+        if len({item.truss_id for item in self.items}) != len(self.items):
+            raise ValueError("Vazník lze vybrat pouze jednou.")
+        return self
 
 
 class BayResize(ActorOperation):

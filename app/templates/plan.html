@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_export_options.html" import export_options %}
+{% from "_access.html" import access_layer %}
 {% block title %}{{ tr('plan.title') }} · {{ project.name }}{% endblock %}
 {% block content %}
 <nav class="breadcrumbs"><a href="/">{{ tr('projects') }}</a><span>/</span><a href="/projects/{{ project.id }}" data-project-name>{{ project.name }}</a><span>/</span><span>{{ tr('plan.title') }}</span></nav>
@@ -9,6 +10,7 @@
   <button type="button" class="button primary" data-open-export="plan-export-dialog">{{ tr('plan.export_pdf') }}</button>
 </section>
 <p class="plan-help">↔ {{ tr('plan.zoom_help') }}</p>
+<form data-plan-layer-form>{{ access_layer(tr) }}</form>
 <section class="plan-viewport"><img data-plan-image src="/api/projects/{{ project.id }}/plan.svg?lang={{ lang }}&revision={{ project.revision }}" alt="{{ tr('plan.title') }} · {{ project.name }}"></section>
 
 <dialog id="plan-export-dialog" data-export-dialog>

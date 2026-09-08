@@ -35,6 +35,7 @@ class ExportOptions:
     page_size: str = "A3"
     orientation: str = "landscape"
     font_size: str = "auto"
+    show_access: bool = False
 
     def __post_init__(self) -> None:
         paper = str(self.page_size).upper()
@@ -58,4 +59,3 @@ class ExportOptions:
     @property
     def requested_font_size(self) -> int | None:
         return None if self.font_size == "auto" else int(self.font_size)
-

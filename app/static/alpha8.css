@@ -33,6 +33,29 @@
 .export-error:not(:empty){display:block}
 .export-note{margin:0;color:var(--muted);font-size:.84rem}
 .three-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+[hidden]{display:none!important}
+.height-form{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+.height-form label{flex:1;min-width:160px;max-width:360px;display:grid;gap:8px}
+.height-help{flex-basis:100%;margin:0;color:var(--muted)}
+.access-guide{margin:20px 0}.access-guide h2{margin-top:0}.access-guide>.button{margin-top:18px}
+.access-legend{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:.88rem}.access-legend b{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:6px;background:#e7f1ed;color:var(--green)}
+.truss-access{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:16px;width:100%;min-width:0}
+.access-side{display:grid;grid-template-columns:24px repeat(5,minmax(44px,1fr));gap:7px;align-items:center;min-width:0}
+.access-side>strong{font-size:1.1rem}.access-chip{min-height:48px;min-width:44px;border:1px solid #aabdb5;border-radius:10px;background:white;color:var(--green);font-size:1.1rem;font-weight:800;cursor:pointer}
+[data-access-note]{grid-column:1/-1;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:var(--muted)}
+[data-access-note]:empty{display:none}.truss-access>.button{grid-column:1/-1;justify-self:start;min-height:48px}
+.access-chip[aria-pressed=true],.select-truss[aria-pressed=true],.bulk-side-options [aria-pressed=true]{background:var(--green);color:white;box-shadow:inset 0 0 0 2px var(--green)}
+.access-chip:focus-visible,.touch-options input:focus-visible+span{outline:3px solid #589e89;outline-offset:3px}
+.selected-truss{outline:3px solid #438e77;outline-offset:1px}.select-truss{grid-column:1/-1;min-height:48px;background:#eef5f1;border:1px solid #9ebbad}
+.bulk-toolbar{position:sticky;top:66px;z-index:6;background:#e7f1ed;border:1px solid #9ebbad;border-radius:12px;padding:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow)}
+.bulk-toolbar .button{min-height:48px}.bulk-side-options{display:flex;gap:8px}.bulk-side-options .button{flex:1;min-height:48px}
+.access-layer{border:0;padding:0;margin:12px 0}.access-layer legend{font-weight:700;margin-bottom:10px}
+.touch-options{display:flex;gap:8px;flex-wrap:wrap}.touch-options label{position:relative;flex:1;min-width:130px;cursor:pointer}
+.touch-options input{position:absolute;opacity:0;width:1px;height:1px}
+.touch-options span{display:flex;align-items:center;justify-content:center;min-height:48px;padding:8px 12px;border:1px solid #aabdb5;border-radius:10px;font-weight:700;text-align:center}
+.touch-options input:checked+span{background:var(--green);color:white;border-color:var(--green)}
+@media(max-width:760px){.truss-access{grid-template-columns:1fr}.access-truss-list .truss-row{padding:16px 12px}.bulk-toolbar{top:58px}.bulk-toolbar>strong{width:100%}.bulk-toolbar .button{flex:1;padding:10px;font-size:.82rem}.access-side{gap:6px;grid-template-columns:20px repeat(5,minmax(44px,1fr))}.height-form .button{min-height:48px}}
 @media(max-width:900px){.topbar-actions{gap:7px}.logout-button{display:none}.plan-toolbar{align-items:flex-start;flex-direction:column}.project-tabs{overflow-x:auto;width:100%}}
 @media(max-width:760px){.three-columns{grid-template-columns:1fr}.project-actions,.bay-actions{width:100%;justify-content:stretch}.project-actions .button,.bay-actions .button{flex:1}.project-title-row{align-items:center}.icon-button{flex-basis:46px;width:46px;height:46px}}
 @media(max-width:560px){.topbar .technician-pill{max-width:120px;font-size:.75rem}.login-language{display:flex}.login-card{padding:25px}.project-tabs a{flex:1;text-align:center}.plan-viewport{margin-left:-12px;margin-right:-12px;border-radius:0;border-left:0;border-right:0}.project-title-row{width:100%}.project-title-row h1{min-width:0;overflow-wrap:anywhere}.project-actions,.bay-actions{flex-direction:column}.project-actions .button,.bay-actions .button{width:100%}}
+@media(max-width:380px){.dialog-form{padding:16px}.access-side{gap:3px;grid-template-columns:16px repeat(5,minmax(44px,1fr))}}

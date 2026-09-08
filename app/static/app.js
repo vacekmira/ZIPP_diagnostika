@@ -1,5 +1,5 @@
 (() => {
-  const scriptVersion = "Alpha 7";
+  const scriptVersion = "Alpha 8";
   if (document.body) document.body.dataset.jsVersion = scriptVersion;
   const storageKey = "zipp.technician";
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -10,6 +10,14 @@
   let language = ["cs", "sk"].includes(storedLanguage) ? storedLanguage : (window.ZIPP_LANG || "cs");
   const catalog = window.ZIPP_I18N || {};
   const t = (key) => catalog[language]?.[key] || catalog.cs?.[key] || key;
+
+  function parseHeight(value) {
+    const text = String(value || '').trim().replace(',', '.');
+    if (!text) return null;
+    const height = Number(text);
+    if (!Number.isFinite(height) || height <= 0 || height > 1000) throw new Error(t('error.validation'));
+    return height;
+  }
 
   $$('[data-language]').forEach((button) => button.addEventListener("click", () => {
     language = button.dataset.language === "sk" ? "sk" : "cs";
@@ -141,6 +149,7 @@
       const project = await api("/api/projects", { method: "POST", body: JSON.stringify({
         name: values.name, note: values.note || null, bay_count: Number(values.bay_count),
         default_truss_count: Number(values.default_truss_count), technician_name: technicianName(),
+        default_height_m: parseHeight(values.default_height_m),
       }) });
       location.href = `/projects/${project.id}`;
     } catch (error) { notify(error.message, "error"); }
@@ -229,11 +238,12 @@
   }
 
   const exportStorageKey = "zipp.exportOptions";
-  const exportDefaults = { page_size: "A3", orientation: "landscape", font_size: "auto" };
+  const exportDefaults = { page_size: "A3", orientation: "landscape", font_size: "auto", show_access: "false" };
   const validExportValues = {
     page_size: ["A4", "A3", "A2", "A1", "A0"],
     orientation: ["landscape", "portrait"],
     font_size: ["auto", "7", "9", "10", "12", "14"],
+    show_access: ["false", "true"],
   };
 
   function storedExportOptions() {
@@ -292,6 +302,20 @@
   }));
 
   const initialPlanImage = $("[data-plan-image]");
+  const layerForm = $('[data-plan-layer-form]');
+  if (layerForm && initialPlanImage) {
+    const applyLayer = () => {
+      const url = new URL(initialPlanImage.src);
+      url.searchParams.set('show_access', layerForm.elements.show_access.value);
+      initialPlanImage.src = url.toString();
+    };
+    layerForm.elements.show_access.value = localStorage.getItem('zipp.planAccess') === 'true' ? 'true' : 'false';
+    applyLayer();
+    layerForm.addEventListener('change', () => {
+      localStorage.setItem('zipp.planAccess', layerForm.elements.show_access.value);
+      applyLayer();
+    });
+  }
   if (initialPlanImage) {
     const alignPositionOne = () => {
       const viewport = initialPlanImage.closest(".plan-viewport");
@@ -319,6 +343,11 @@
     const right = $('[data-side="right"]', row);
     if (left) renderSide(left, data.left_done);
     if (right) renderSide(right, data.right_done);
+    $$('[data-access-method]', row).forEach(button => {
+      button.setAttribute('aria-pressed', String(data[`${button.dataset.accessSide}_access`] === button.dataset.accessMethod));
+    });
+    const note = $('[data-access-note]', row);
+    if (note) note.textContent = data.access_note || '';
   }
 
   $$('[data-side]').forEach((button) => button.addEventListener("click", async () => {
@@ -343,9 +372,137 @@
     if (!bayId) return;
     try {
       const bay = await api(`/api/bays/${bayId}`);
+      bay.trusses.forEach(updateTruss);
+      $$('[data-height-form]').forEach(form => { form.dataset.revision = bay.project_revision; });
       const target = $("[data-bay-progress]");
       if (target) target.textContent = `${bay.progress.completed} / ${bay.progress.required} ${t("progress.done")} · ${bay.progress.remaining} ${t("progress.remaining")}`;
     } catch (_) { /* reconnect will resync */ }
+  }
+
+  function updateHeights(project) {
+    $$('[data-height-form]').forEach(form => {
+      form.dataset.revision = project.revision;
+      if (!form.contains(document.activeElement)) {
+        const bayId = form.dataset.heightEndpoint.match(/bays\/(\d+)/)?.[1];
+        const value = bayId ? project.bays.find(bay => bay.id === Number(bayId))?.height_m : project.default_height_m;
+        form.elements.height_m.value = value ?? '';
+      }
+    });
+    project.bays.forEach(bay => $$(`[data-height-bay="${bay.id}"]`).forEach(node => {
+      node.textContent = `${t('height.label')}: ${bay.effective_height_m == null ? t('access.not_set') : `${String(bay.effective_height_m).replace('.', ',')} m`}`;
+    }));
+  }
+  $$('[data-height-form]').forEach(form => form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = $('button', form); submit.disabled = true;
+    try {
+      const project = await api(form.dataset.heightEndpoint, {method: 'PUT', body: JSON.stringify({
+        height_m: parseHeight(form.elements.height_m.value), expected_revision: Number(form.dataset.revision), technician_name: technicianName(),
+      })});
+      updateHeights(project); notify(t('height.saved'));
+    } catch (error) { notify(error.message, 'error'); }
+    finally { submit.disabled = false; }
+  }));
+
+  $$('[data-access-method]').forEach(button => button.addEventListener('click', async () => {
+    const row = button.closest('[data-truss-id]');
+    if (row.dataset.accessBusy === 'true') return;
+    row.dataset.accessBusy = 'true';
+    $$('[data-access-method]', row).forEach(node => { node.disabled = true; });
+    try {
+      const data = await api(`/api/trusses/${row.dataset.trussId}/access/${button.dataset.accessSide}`, {method: 'PUT', body: JSON.stringify({
+        method: button.getAttribute('aria-pressed') === 'true' ? null : button.dataset.accessMethod,
+        expected_version: Number(row.dataset.version), technician_name: technicianName(),
+      })});
+      updateTruss(data); notify(t('access.saved'));
+    } catch (error) {
+      notify(error.message, 'error');
+      if (error.data?.detail?.current) updateTruss(error.data.detail.current);
+    } finally {
+      row.dataset.accessBusy = 'false';
+      $$('[data-access-method]', row).forEach(node => { node.disabled = false; });
+    }
+  }));
+  const noteDialog = $('[data-access-note-dialog]');
+  const noteForm = $('[data-access-note-form]');
+  $$('[data-edit-access-note]').forEach(button => button.addEventListener('click', () => {
+    const row = button.closest('[data-truss-id]');
+    noteForm.dataset.trussId = row.dataset.trussId;
+    noteForm.dataset.version = row.dataset.version;
+    noteForm.elements.note.value = $('[data-access-note]', row).textContent;
+    $('[data-note-label]', noteForm).textContent = $('[data-label]', row).textContent;
+    $('[data-note-error]', noteForm).textContent = '';
+    noteDialog.showModal();
+  }));
+  if (noteForm) noteForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = $('button.button.primary', noteForm); submit.disabled = true;
+    try {
+      const data = await api(`/api/trusses/${noteForm.dataset.trussId}/access-note`, {method: 'PUT', body: JSON.stringify({
+        note: noteForm.elements.note.value, expected_version: Number(noteForm.dataset.version), technician_name: technicianName(),
+      })});
+      updateTruss(data); noteDialog.close(); notify(t('access.note_saved'));
+    } catch (error) { $('[data-note-error]', noteForm).textContent = error.message; }
+    finally { submit.disabled = false; }
+  });
+  const selection = new Map();
+  const selectionButton = $('[data-select-mode]');
+  const bulkForm = $('[data-bulk-form]');
+  let bulkValues = {};
+  const showSelection = () => {
+    $('[data-selected-count]').textContent = `${t('access.selected')}: ${selection.size}`;
+    $('[data-open-bulk]').disabled = selection.size === 0;
+    $$('[data-select-truss]').forEach(button => {
+      const row = button.closest('[data-truss-id]');
+      const selected = selection.has(Number(row.dataset.trussId));
+      button.setAttribute('aria-pressed', String(selected)); row.classList.toggle('selected-truss', selected);
+    });
+  };
+  function setSelectionMode(active) {
+    selectionButton.setAttribute('aria-pressed', String(active));
+    $('[data-bulk-toolbar]').hidden = !active;
+    $$('[data-select-truss]').forEach(button => { button.hidden = !active; });
+    if (!active) selection.clear();
+    showSelection();
+  }
+  if (selectionButton) {
+    selectionButton.addEventListener('click', () => setSelectionMode(selectionButton.getAttribute('aria-pressed') !== 'true'));
+    $('[data-end-selection]').addEventListener('click', () => setSelectionMode(false));
+    $$('[data-select-truss]').forEach(button => button.addEventListener('click', () => {
+      const row = button.closest('[data-truss-id]'); const id = Number(row.dataset.trussId);
+      if (selection.has(id)) selection.delete(id); else selection.set(id, Number(row.dataset.version));
+      showSelection();
+    }));
+    $('[data-select-all]').addEventListener('click', () => {
+      $$('[data-select-truss]').forEach(button => {
+        const row = button.closest('[data-truss-id]'); selection.set(Number(row.dataset.trussId), Number(row.dataset.version));
+      }); showSelection();
+    });
+    $('[data-open-bulk]').addEventListener('click', () => {
+      bulkValues = {};
+      $$('[data-bulk-method]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.bulkMethod === 'keep')));
+      $('[data-bulk-count]').textContent = `${t('access.selected')}: ${selection.size}`;
+      $('[data-bulk-submit]').disabled = true; $('[data-bulk-error]').textContent = '';
+      $('[data-bulk-dialog]').showModal();
+    });
+    $$('[data-bulk-method]').forEach(button => button.addEventListener('click', () => {
+      const field = `${button.dataset.accessSide}_access`;
+      if (button.dataset.bulkMethod === 'keep') delete bulkValues[field];
+      else bulkValues[field] = button.dataset.bulkMethod === 'clear' ? null : button.dataset.bulkMethod;
+      $$(`[data-bulk-method][data-access-side="${button.dataset.accessSide}"]`).forEach(node => node.setAttribute('aria-pressed', String(node === button)));
+      $('[data-bulk-submit]').disabled = Object.keys(bulkValues).length === 0;
+    }));
+    bulkForm.addEventListener('submit', async event => {
+      event.preventDefault(); const submit = $('[data-bulk-submit]'); submit.disabled = true;
+      try {
+        const data = await api(`/api/bays/${$('[data-bay-id]').dataset.bayId}/access/bulk`, {method:'POST', body:JSON.stringify({
+          items: [...selection].map(([truss_id, expected_version]) => ({truss_id, expected_version})),
+          ...bulkValues, technician_name: technicianName(),
+        })});
+        data.changed.forEach(updateTruss); $('[data-bulk-dialog]').close(); setSelectionMode(false); notify(t('access.bulk_saved'));
+      } catch (error) { $('[data-bulk-error]').textContent = error.message; }
+      finally { submit.disabled = false; }
+    });
   }
 
   const bayNameForm = $("[data-bay-name-form]");
@@ -497,6 +654,9 @@
       if (event.data === "pong") { clearTimeout(pongTimer); return; }
       let message; try { message = JSON.parse(event.data); } catch (_) { return; }
       if (message.truss) updateTruss(message.truss);
+      if (message.trusses) message.trusses.forEach(updateTruss);
+      if (message.project_revision) $$('[data-height-form]').forEach(form => { form.dataset.revision = message.project_revision; });
+      if (message.type === 'height.updated' && message.project) updateHeights(message.project);
       if (message.type === "project.renamed" && message.project) {
         updateProjectName(message.project.id, message.project.name);
       }

@@ -178,6 +178,46 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 }
 
 
+TRANSLATIONS["cs"].update({
+    "height.label": "Výška", "height.project": "Výchozí výška haly (m)",
+    "height.bay": "Vlastní výška lodě (m)", "height.inherit": "Prázdné pole přebírá výšku zakázky.",
+    "height.optional": "Volitelné, např. 8,5", "height.saved": "Výška uložena",
+    "height.default": "Výchozí výška", "access.title": "Přístupy",
+    "access.N": "Nůžková plošina", "access.K": "Kloubová plošina", "access.Ž": "Žebřík",
+    "access.L": "Lezecká technika", "access.J": "Jeřábová dráha",
+    "access.not_set": "Neuvedeno", "access.clear": "Vymazat", "access.saved": "Přístup uložen",
+    "access.note": "Poznámka k přístupu", "access.edit_note": "Přidat / upravit poznámku",
+    "access.note_saved": "Poznámka uložena", "access.legend": "Přístupy - legenda",
+    "access.show": "Zobrazit přístupy", "access.hide": "Bez přístupů", "access.select": "Vybrat více",
+    "access.selected": "Vybráno", "access.select_truss": "Vybrat vazník", "access.all": "Vybrat celou loď",
+    "access.finish": "Ukončit výběr", "access.apply": "Použít na vybrané", "access.keep": "Beze změny",
+    "access.bulk": "Hromadné nastavení přístupů", "access.bulk_saved": "Přístupy vybraných vazníků uloženy",
+    "access.help": "Zvolte přístup pro každou stranu. Opětovným klepnutím na aktivní písmeno jej vymažete.",
+    "audit.action.truss.access.changed": "Změna přístupu", "audit.field.access": "Přístup",
+    "audit.action.height.changed": "Změna výšky", "audit.field.height_m": "Výška lodě",
+    "audit.field.default_height_m": "Výchozí výška haly",
+})
+TRANSLATIONS["sk"].update({
+    "height.label": "Výška", "height.project": "Predvolená výška haly (m)",
+    "height.bay": "Vlastná výška lode (m)", "height.inherit": "Prázdne pole preberá výšku zákazky.",
+    "height.optional": "Voliteľné, napr. 8,5", "height.saved": "Výška uložená",
+    "height.default": "Predvolená výška", "access.title": "Prístupy",
+    "access.N": "Nožnicová plošina", "access.K": "Kĺbová plošina", "access.Ž": "Rebrík",
+    "access.L": "Lezecká technika", "access.J": "Žeriavová dráha",
+    "access.not_set": "Neuvedené", "access.clear": "Vymazať", "access.saved": "Prístup uložený",
+    "access.note": "Poznámka k prístupu", "access.edit_note": "Pridať / upraviť poznámku",
+    "access.note_saved": "Poznámka uložená", "access.legend": "Prístupy - legenda",
+    "access.show": "Zobraziť prístupy", "access.hide": "Bez prístupov", "access.select": "Vybrať viac",
+    "access.selected": "Vybrané", "access.select_truss": "Vybrať väzník", "access.all": "Vybrať celú loď",
+    "access.finish": "Ukončiť výber", "access.apply": "Použiť na vybrané", "access.keep": "Bez zmeny",
+    "access.bulk": "Hromadné nastavenie prístupov", "access.bulk_saved": "Prístupy vybraných väzníkov uložené",
+    "access.help": "Zvoľte prístup pre každú stranu. Opätovným klepnutím na aktívne písmeno ho vymažete.",
+    "audit.action.truss.access.changed": "Zmena prístupu", "audit.field.access": "Prístup",
+    "audit.action.height.changed": "Zmena výšky", "audit.field.height_m": "Výška lode",
+    "audit.field.default_height_m": "Predvolená výška haly",
+})
+
+
 def normalize_language(value: str | None) -> str:
     return "sk" if value == "sk" else "cs"
 
